@@ -1,0 +1,422 @@
+[
+  {
+    "procedure_code": "75010",
+    "procedure_description": "Ablations"
+  },
+  {
+    "procedure_code": "75011",
+    "procedure_description": "Preparation of extra-corporeal equipment for surgical procedures."
+  },
+  {
+    "procedure_code": "75012",
+    "procedure_description": "Operation of heart laser during myocardial revascularisation"
+  },
+  {
+    "procedure_code": "75013",
+    "procedure_description": "Continued operation of extra-corporeal equipment during surgery for a time in excess of one hour in 30 minute increments or part thereof provided that such part comprises 50% or more of the time"
+  },
+  {
+    "procedure_code": "75014",
+    "procedure_description": "Radiofrequency Catheter Ablations"
+  },
+  {
+    "procedure_code": "75015",
+    "procedure_description": "Preparation and operation of pre-operative, intra-operative or post operative physiological monitoring per patient, per admission"
+  },
+  {
+    "procedure_code": "75017",
+    "procedure_description": "Standby with extra-corporeal equipment for surgery within hospital"
+  },
+  {
+    "procedure_code": "75019",
+    "procedure_description": "Standby within the hospital for coronary angioplasty."
+  },
+  {
+    "procedure_code": "75021",
+    "procedure_description": "Preparation and operation of intra-aortic balloon pump in theatre, intensive care unit and catheterisation laboratory."
+  },
+  {
+    "procedure_code": "75023",
+    "procedure_description": "Global fee for preparation and operation and removal of cardio assist device (LVAD, RVAD, BVAD) in theatre and intensive care unit."
+  },
+  {
+    "procedure_code": "75027",
+    "procedure_description": "Preparation and operation of a pre- and post-operative blood salvage device."
+  },
+  {
+    "procedure_code": "75029",
+    "procedure_description": "Preparation and operation of an autotransfusion cell washing system."
+  },
+  {
+    "procedure_code": "75031",
+    "procedure_description": "Determination and monitoring of haemodynamic/pulmonary parameters, metabolism, arterial/venous pressure flow studies in high care/ICU (per patient per multiple procedures per day)"
+  },
+  {
+    "procedure_code": "75033",
+    "procedure_description": "Assistance with bronchoscopy procedures, placement of arterial/venous catheters, ultrasound examinations or photography."
+  },
+  {
+    "procedure_code": "75034",
+    "procedure_description": "Lymph compression treatment."
+  },
+  {
+    "procedure_code": "75035",
+    "procedure_description": "Nebulization (per one procedure)."
+  },
+  {
+    "procedure_code": "75037",
+    "procedure_description": "Measurement of Lung volumes and capacities by means of closed circuit (He) or (N2) washout or body plethysmography."
+  },
+  {
+    "procedure_code": "75039",
+    "procedure_description": "Flow-volume determinations."
+  },
+  {
+    "procedure_code": "75041",
+    "procedure_description": "Flow-volume (Pre-post B-D)."
+  },
+  {
+    "procedure_code": "75043",
+    "procedure_description": "Airways resistance and conductance measurements using plethysmograph or similar apparatus."
+  },
+  {
+    "procedure_code": "75045",
+    "procedure_description": "Gas distribution measurements."
+  },
+  {
+    "procedure_code": "75047",
+    "procedure_description": "Diffusion determinations."
+  },
+  {
+    "procedure_code": "75049",
+    "procedure_description": "Exercise testing (EIA)."
+  },
+  {
+    "procedure_code": "75050",
+    "procedure_description": "ECMO change-out and re-establishment."
+  },
+  {
+    "procedure_code": "75051",
+    "procedure_description": "Exercise testing with recording of : VT, VO2, HR, RR, ECG and Oximetry"
+  },
+  {
+    "procedure_code": "75053",
+    "procedure_description": "Allergy tests."
+  },
+  {
+    "procedure_code": "75055",
+    "procedure_description": "If RAST included add (per allergen)."
+  },
+  {
+    "procedure_code": "75057",
+    "procedure_description": "Bronchial provocation testing."
+  },
+  {
+    "procedure_code": "75059",
+    "procedure_description": "Compliance measurements."
+  },
+  {
+    "procedure_code": "75061",
+    "procedure_description": "Maximum inspiratory (MIP) and/or expiratory (MEP) pressures and/or Vital Capacity and/or PEFR."
+  },
+  {
+    "procedure_code": "75062",
+    "procedure_description": "Assist in preparations and operations of Rotablator Procedures"
+  },
+  {
+    "procedure_code": "75063",
+    "procedure_description": "Cardiac catheterisation for the first hour."
+  },
+  {
+    "procedure_code": "75064",
+    "procedure_description": "Intravascular Ultrasound (IVUS)"
+  },
+  {
+    "procedure_code": "75065",
+    "procedure_description": "Each additional 30 minutes or part thereof provided that such part comprises 50% or more of the time"
+  },
+  {
+    "procedure_code": "75066",
+    "procedure_description": "Cardiac Cath Right Heart Studies"
+  },
+  {
+    "procedure_code": "75067",
+    "procedure_description": "Cardiac Electro physiology and related procedures for first FOUR hours."
+  },
+  {
+    "procedure_code": "75068",
+    "procedure_description": "Each additional 30 minutes or part thereof provided that such part comprises 50% or more of the time."
+  },
+  {
+    "procedure_code": "75069",
+    "procedure_description": "Temporary and single Pacemaker procedures."
+  },
+  {
+    "procedure_code": "75070",
+    "procedure_description": "Permanent and dual Pacemaker procedures or implantation and testing of ICD devices."
+  },
+  {
+    "procedure_code": "75071",
+    "procedure_description": "Each additional 30 minutes or part thereof provided that such part comprises 50% or more of the time."
+  },
+  {
+    "procedure_code": "75072",
+    "procedure_description": "Multisite Pacing (Bi-ventricular pacing)"
+  },
+  {
+    "procedure_code": "75073",
+    "procedure_description": "Dilatation procedures and stents."
+  },
+  {
+    "procedure_code": "75074",
+    "procedure_description": "Wavemap - Measurement of Fractional Flow Reserve to assess the functional severity of coronary artery stenoses"
+  },
+  {
+    "procedure_code": "75075",
+    "procedure_description": "Pacemaker checking and/or reprogramming."
+  },
+  {
+    "procedure_code": "75077",
+    "procedure_description": "24 Hour Holter ambulatory monitoring."
+  },
+  {
+    "procedure_code": "75079",
+    "procedure_description": "Cardiac exercise stress testing."
+  },
+  {
+    "procedure_code": "75081",
+    "procedure_description": "Recording of twelve lead ECG."
+  },
+  {
+    "procedure_code": "75085",
+    "procedure_description": "Each additional 30 minutes or part thereof, provided that such part comprises 50% or more of the time."
+  },
+  {
+    "procedure_code": "75087",
+    "procedure_description": "M Mode echocardiogram."
+  },
+  {
+    "procedure_code": "75089",
+    "procedure_description": "2D echocardiogram."
+  },
+  {
+    "procedure_code": "75091",
+    "procedure_description": "Doppler flow."
+  },
+  {
+    "procedure_code": "75093",
+    "procedure_description": "Colour imaging."
+  },
+  {
+    "procedure_code": "75095",
+    "procedure_description": "ECG signal averaging (Hi-Res)."
+  },
+  {
+    "procedure_code": "75097",
+    "procedure_description": "Ambulatory bloodpressure monitoring."
+  },
+  {
+    "procedure_code": "75099",
+    "procedure_description": "Vector cardiogram."
+  },
+  {
+    "procedure_code": "75111",
+    "procedure_description": "Transoesophageal echocardiogram."
+  },
+  {
+    "procedure_code": "75115",
+    "procedure_description": "Additional 2 nerves (used as adjunct with nerve conduction studies, including F-waves, H-reflexes or additional nerves required for diagnosis)"
+  },
+  {
+    "procedure_code": "75116",
+    "procedure_description": "Preparation and operation of an artificial heart (Berlin-Heart)"
+  },
+  {
+    "procedure_code": "75117",
+    "procedure_description": "Electroretinography (ERG) - unilateral or Electro-oculography (EOG)"
+  },
+  {
+    "procedure_code": "75118",
+    "procedure_description": "Daily monitoring of artificial heart, per hour"
+  },
+  {
+    "procedure_code": "75119",
+    "procedure_description": "Sleep EEG."
+  },
+  {
+    "procedure_code": "75125",
+    "procedure_description": "Multiple sleep latency test (MSLT)"
+  },
+  {
+    "procedure_code": "75127",
+    "procedure_description": "Overnight CPAP titration."
+  },
+  {
+    "procedure_code": "75132",
+    "procedure_description": "Mobile EEG setup in ICU (to be added to Item 133 if appropriate)"
+  },
+  {
+    "procedure_code": "75133",
+    "procedure_description": "EEG with special activation."
+  },
+  {
+    "procedure_code": "75135",
+    "procedure_description": "Electromyography : Needle examination per muscle/conduction velocity (motor/sensory) each, to a maximum of 5."
+  },
+  {
+    "procedure_code": "75137",
+    "procedure_description": "Intra-operative evoked potentials for the 1st hour"
+  },
+  {
+    "procedure_code": "75139",
+    "procedure_description": "Each additional hour or part thereof provided that such part comprises 50% or more of the time."
+  },
+  {
+    "procedure_code": "75141",
+    "procedure_description": "Intra-operative EEG (carotid endarterectomy)."
+  },
+  {
+    "procedure_code": "75143",
+    "procedure_description": "Transcranial or Carotid Doppler (bilateral)."
+  },
+  {
+    "procedure_code": "75145",
+    "procedure_description": "Preparation of extra-corporeal equipment: Haemoperfusion (HP), Haemofiltration (HF), Haemoconcentration (HC), Continuous renal replacement therapy (CRRT), Aphaeresis, Auto transfusion and cell recovery (AT)."
+  },
+  {
+    "procedure_code": "75146",
+    "procedure_description": "Chronic haemodialysis (acetate dialysate)"
+  },
+  {
+    "procedure_code": "75147",
+    "procedure_description": "Peritoneal dialysis, per day"
+  },
+  {
+    "procedure_code": "75148",
+    "procedure_description": "Chronic haemodialysis (bicarbonate dialysate)"
+  },
+  {
+    "procedure_code": "75149",
+    "procedure_description": "Treatment procedure per 1 hour (excluding acute haemodialysis, chronic haemodialysis and CRRT)"
+  },
+  {
+    "procedure_code": "75150",
+    "procedure_description": "Acute haemodialysis"
+  },
+  {
+    "procedure_code": "75151",
+    "procedure_description": "Treatment procedures for CRRT up to 6 hours or part thereof provided that such part comprises 50% or more of the time"
+  },
+  {
+    "procedure_code": "75152",
+    "procedure_description": "Treatment procedure for CRRT up to 12 hours or part thereof provided that such part comprises more than 6 hours of the time"
+  },
+  {
+    "procedure_code": "75153",
+    "procedure_description": "Patient training in centre for dialysis, CPAP training and problem-solving, home ventilators and nebulisers, per 30 minutes (to maximum of 24 hours)"
+  },
+  {
+    "procedure_code": "75154",
+    "procedure_description": "Treatment procedure for CRRT up to 18 hours or part thereof provided that such part comprises more than 12 hours of the time"
+  },
+  {
+    "procedure_code": "75155",
+    "procedure_description": "Patient training or follow-up at patient's home, for dialysis, home ventilators and nebulisers, per 30 minutes (to maximum of 24 hours)."
+  },
+  {
+    "procedure_code": "75156",
+    "procedure_description": "Treatment procedure for CRRT up to 24 hours or part thereof provided that such part comprises more than 18 hours of the time"
+  },
+  {
+    "procedure_code": "75157",
+    "procedure_description": "Standby with extra corporeal equipment (maximum 4 hours) (per event)."
+  },
+  {
+    "procedure_code": "75159",
+    "procedure_description": "Post Vasectomy semen analysis."
+  },
+  {
+    "procedure_code": "75161",
+    "procedure_description": "Complete semen analysis."
+  },
+  {
+    "procedure_code": "75163",
+    "procedure_description": "Semen wash for A I."
+  },
+  {
+    "procedure_code": "75165",
+    "procedure_description": "IVF, GIFT, PROST with semen and serum preparation including ovum and embryo handling and transfer"
+  },
+  {
+    "procedure_code": "75167",
+    "procedure_description": "Ovum and embryo freezing."
+  },
+  {
+    "procedure_code": "75169",
+    "procedure_description": "Semen freezing."
+  },
+  {
+    "procedure_code": "75171",
+    "procedure_description": "Travelling per km in excess of 16km (in own car)."
+  },
+  {
+    "procedure_code": "75173",
+    "procedure_description": "Equipment hire (By arrangement with scheme)."
+  },
+  {
+    "procedure_code": "75175",
+    "procedure_description": "Medication / Material"
+  },
+  {
+    "procedure_code": "75176",
+    "procedure_description": "Global fee for Continuous Ambulatory Peritoneal Dialysis (CAPD), per 30 day period."
+  },
+  {
+    "procedure_code": "75177",
+    "procedure_description": "Global fee for Automated Peritoneal Dialysis (APD), per 30 day period."
+  },
+  {
+    "procedure_code": "75178",
+    "procedure_description": "Short latency brainstem auditory evoked potentials, neurological examination, bilateral"
+  },
+  {
+    "procedure_code": "75179",
+    "procedure_description": "Auditory evoked potentials, full audiological examination, bilateral"
+  },
+  {
+    "procedure_code": "75180",
+    "procedure_description": "Pattern-reversal visual evoked potentials: full evaluation of visual pathways, unilateral"
+  },
+  {
+    "procedure_code": "75181",
+    "procedure_description": "Somatosensory evoked potentials, unilateral, upper limb"
+  },
+  {
+    "procedure_code": "75182",
+    "procedure_description": "Somatosensory evoked potentials, unilateral, lower limb"
+  },
+  {
+    "procedure_code": "75183",
+    "procedure_description": "Electronystagmography for spontaneous and positional nystagmus (3253)"
+  },
+  {
+    "procedure_code": "75184",
+    "procedure_description": "Caloric test done with electronystagmography (3255)"
+  },
+  {
+    "procedure_code": "75185",
+    "procedure_description": "Overnight polysomnography"
+  },
+  {
+    "procedure_code": "75186",
+    "procedure_description": "Obstructive sleep apnea screening"
+  },
+  {
+    "procedure_code": "75187",
+    "procedure_description": "Long term EEG monitoring with a minimum of 8 hours (but less than 16 hours) recording time, including preparation (collodion adhesive technique with at least 21 electrodes) and interpretation"
+  },
+  {
+    "procedure_code": "75188",
+    "procedure_description": "Long term EEG monitoring with 16 to 24 hours recording time, including preparation (collodion adhesive technique with at least 21 electrodes) and interpretation"
+  }
+]
