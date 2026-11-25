@@ -30,6 +30,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { useLicenseEntitlement } from '@/hooks/useLicenseEntitlement';
+import { LicenseBanner } from '@/components/LicenseBanner';
 import {
   ALL_TIME_ADDON_CODES,
   CLINICAL_MACROS,
@@ -93,6 +95,8 @@ function splitNotesAndResolution(rawNotes: string | null): {
 export default function PractitionerCapturePage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const entitlement = useLicenseEntitlement();
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const queryReplyInputRef = useRef<HTMLInputElement | null>(null);
@@ -505,7 +509,9 @@ export default function PractitionerCapturePage() {
 
   // Handlers: Multi-Select Discipline 075 Tariffs
   function addProcedureCode(item: ProcedureItem) {
-    if (selectedTariffs.some((existing) => existing.procedure_code === item.procedure_code)) {
+    if (
+      selectedTariffs.some((existing) => existing.procedure_code === item.procedure_code)
+    ) {
       return;
     }
 
@@ -560,6 +566,15 @@ export default function PractitionerCapturePage() {
 
     setFormError(null);
     setFormSuccess(null);
+
+    // Enforce monthly Starter quota on brand-new submissions (resubmitting queried cases is always allowed)
+    if (!editingCase && !entitlement.canSubmitCase) {
+      setFormError(
+        entitlement.blockReason ||
+          'Monthly licence quota reached. Tap Activate Key above to unlock unlimited cases.'
+      );
+      return;
+    }
 
     if (!patientFirstName.trim() || !patientSurname.trim()) {
       setFormError('Patient name and surname are required.');
@@ -686,11 +701,12 @@ export default function PractitionerCapturePage() {
         return;
       }
 
-      // Insert brand-new case
+      // Insert brand-new case linked to active licence
       const { data: insertedCase, error: insertError } = await supabase
         .from('cases')
         .insert({
           client_id: userId,
+          license_id: entitlement.license?.id ?? null,
           patient_first_name: patientFirstName.trim(),
           patient_surname: patientSurname.trim(),
           medical_aid_name: 'On Sticker',
@@ -729,6 +745,7 @@ export default function PractitionerCapturePage() {
             tariff_count: selectedTariffs.length,
             icd_count: selectedIcds.length,
             duration_minutes: timing.durationMinutes,
+            license_key: entitlement.activeKey,
           },
         });
       }
@@ -744,7 +761,7 @@ export default function PractitionerCapturePage() {
       setFormSuccess(
         `Case ${insertedCase?.case_ref ?? ''} submitted to billing office. Ready for next patient.`
       );
-      await fetchMyCases(userId);
+      await Promise.all([fetchMyCases(userId), entitlement.refreshUsage()]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to submit case.';
       setFormError(msg);
@@ -807,7 +824,10 @@ export default function PractitionerCapturePage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 space-y-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+        {/* MediBurgh Licence & Monthly Quota Banner */}
+        <LicenseBanner entitlement={entitlement} />
+
         {/* Queried Cases Action Banner */}
         {queriedCount > 0 && !editingCase && (
           <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-400/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1274,7 +1294,10 @@ export default function PractitionerCapturePage() {
                       <button
                         type="button"
                         onClick={() =>
-                          applyGuardrailFix(alert.fixCode as string, alert.fixUnits ?? 1)
+                          applyGuardrailFix(
+                            alert.fixCode as string,
+                            alert.fixUnits ?? 1
+                          )
                         }
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-xs font-bold shrink-0 transition ${
                           alert.severity === 'warning'
@@ -1295,7 +1318,9 @@ export default function PractitionerCapturePage() {
             {selectedTariffs.length > 0 && (
               <div className="space-y-2.5 pt-1">
                 {selectedTariffs.map((tariff) => {
-                  const isTimeAddon = ALL_TIME_ADDON_CODES.has(tariff.procedure_code);
+                  const isTimeAddon = ALL_TIME_ADDON_CODES.has(
+                    tariff.procedure_code
+                  );
 
                   return (
                     <div
@@ -1307,21 +1332,23 @@ export default function PractitionerCapturePage() {
                           <span className="px-2 py-0.5 rounded bg-[#00D2C6]/15 border border-[#00D2C6]/35 font-mono text-xs font-bold text-[#00D2C6]">
                             {tariff.procedure_code}
                           </span>
-                          {isTimeAddon && timing.extraThirtyMinAfterFirstHour > 0 && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateTariffUnits(
-                                  tariff.procedure_code,
-                                  timing.extraThirtyMinAfterFirstHour
-                                )
-                              }
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#1D7AFC]/20 text-[#7FB3FF] text-[10px] font-mono hover:bg-[#1D7AFC]/30"
-                            >
-                              <Sparkles className="w-3 h-3" />
-                              Sync {timing.extraThirtyMinAfterFirstHour} time units
-                            </button>
-                          )}
+                          {isTimeAddon &&
+                            timing.extraThirtyMinAfterFirstHour > 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateTariffUnits(
+                                    tariff.procedure_code,
+                                    timing.extraThirtyMinAfterFirstHour
+                                  )
+                                }
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#1D7AFC]/20 text-[#7FB3FF] text-[10px] font-mono hover:bg-[#1D7AFC]/30"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                Sync {timing.extraThirtyMinAfterFirstHour} time
+                                units
+                              </button>
+                            )}
                         </div>
                         <p className="text-xs text-[#C5D0DF] leading-relaxed">
                           {tariff.procedure_description}
@@ -1525,7 +1552,7 @@ export default function PractitionerCapturePage() {
 
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || (!editingCase && !entitlement.canSubmitCase)}
                 className={`flex-1 h-12 rounded-xl disabled:opacity-50 text-[#090B0E] font-[family-name:var(--font-montserrat)] font-extrabold text-sm tracking-wider uppercase transition flex items-center justify-center gap-2 shadow-lg ${
                   editingCase
                     ? 'bg-amber-400 hover:bg-amber-300 shadow-amber-400/20'
@@ -1535,12 +1562,19 @@ export default function PractitionerCapturePage() {
                 {submitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>{editingCase ? 'Resubmitting Case...' : 'Submitting Case...'}</span>
+                    <span>
+                      {editingCase ? 'Resubmitting Case...' : 'Submitting Case...'}
+                    </span>
                   </>
                 ) : editingCase ? (
                   <>
                     <RotateCcw className="w-4 h-4" />
                     <span>Save &amp; Resubmit to Billing Office</span>
+                  </>
+                ) : !entitlement.canSubmitCase ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Monthly Limit Reached — Activate Key Above</span>
                   </>
                 ) : (
                   <>
@@ -1617,7 +1651,10 @@ export default function PractitionerCapturePage() {
                           <button
                             type="button"
                             onClick={() =>
-                              handleCopyPmsNumber(c.id, c.billed_invoice_ref as string)
+                              handleCopyPmsNumber(
+                                c.id,
+                                c.billed_invoice_ref as string
+                              )
                             }
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 font-mono text-xs sm:text-sm font-extrabold tracking-wide transition"
                             title="Copy PMS Account Number"
@@ -1659,7 +1696,8 @@ export default function PractitionerCapturePage() {
                     <div className="flex flex-wrap gap-1.5">
                       <span className="px-2 py-0.5 rounded bg-[#14181F] border border-[#232B38] font-mono text-[11px] text-[#E2E8F0]">
                         ICD: {c.primary_icd10}
-                        {Array.isArray(c.secondary_icd10) && c.secondary_icd10.length > 0
+                        {Array.isArray(c.secondary_icd10) &&
+                        c.secondary_icd10.length > 0
                           ? ` (+${c.secondary_icd10.length})`
                           : ''}
                       </span>
@@ -1675,7 +1713,8 @@ export default function PractitionerCapturePage() {
                     </div>
 
                     {/* Clinical Notes & Previous Query Replies */}
-                    {(parsedNotes.baseNotes || parsedNotes.resolutionReplies.length > 0) && (
+                    {(parsedNotes.baseNotes ||
+                      parsedNotes.resolutionReplies.length > 0) && (
                       <div className="p-3 rounded-lg bg-[#14181F] border border-[#232B38] space-y-1.5 text-xs">
                         {parsedNotes.baseNotes && (
                           <p className="text-[#C5D0DF]">
@@ -1723,7 +1762,9 @@ export default function PractitionerCapturePage() {
 
                           <button
                             type="button"
-                            onClick={() => startEditingCase(c, { focusReply: true })}
+                            onClick={() =>
+                              startEditingCase(c, { focusReply: true })
+                            }
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-[#090B0E] font-extrabold text-xs transition"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
