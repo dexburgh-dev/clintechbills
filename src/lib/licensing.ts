@@ -4,6 +4,8 @@ export type PlanTier =
   | 'PRO_TRIAL'
   | 'PRO_PAID'
   | 'GROUP_PAID'
+  | 'BUREAU_STARTER'
+  | 'BUREAU_SCALE'
   | 'BUREAU_PAID';
 
 export type LicenseStatus = 'active' | 'suspended' | 'expired';
@@ -85,15 +87,35 @@ export const PLAN_PRESETS: Record<PlanTier, PlanPreset> = {
     defaultTrialDays: null,
     description: 'Up to 5 Practitioners + 3 Admin seats • Shared directories & centralized queue',
   },
+  BUREAU_STARTER: {
+    tier: 'BUREAU_STARTER',
+    label: 'Bureau Office Starter',
+    badgeColor: 'bg-purple-950/80 text-purple-300 border-purple-500/40',
+    priceLabel: 'R1,950 / mo',
+    defaultMonthlyLimit: null,
+    defaultPractitioners: 5,
+    defaultTrialDays: null,
+    description: 'Dedicated /queue tenant • Up to 5 ClinTechs + 3 Office Clerks',
+  },
+  BUREAU_SCALE: {
+    tier: 'BUREAU_SCALE',
+    label: 'Bureau Office Scale',
+    badgeColor: 'bg-purple-950/80 text-purple-300 border-purple-500/40',
+    priceLabel: 'R3,450 / mo',
+    defaultMonthlyLimit: null,
+    defaultPractitioners: 15,
+    defaultTrialDays: null,
+    description: 'Dedicated /queue tenant • Up to 15 ClinTechs + 10 Office Clerks',
+  },
   BUREAU_PAID: {
     tier: 'BUREAU_PAID',
-    label: 'Bureau Partner',
+    label: 'Bureau Enterprise',
     badgeColor: 'bg-purple-950/80 text-purple-300 border-purple-500/40',
-    priceLabel: 'R1,950 + R175/seat',
+    priceLabel: 'R5,950 / mo',
     defaultMonthlyLimit: null,
-    defaultPractitioners: 25,
+    defaultPractitioners: 35,
     defaultTrialDays: null,
-    description: 'Multi-practice bureau licensing • Unlimited staff & bulk PMS exports',
+    description: 'Dedicated /queue tenant • Up to 35 ClinTechs + Unlimited Office Clerks',
   },
 };
 
