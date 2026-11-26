@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Activity,
   AlertTriangle,
+  Building2,
   Camera,
   Check,
   CheckCircle2,
@@ -16,8 +17,10 @@ import {
   Image as ImageIcon,
   Loader2,
   LogOut,
+  Phone,
   Plus,
   RotateCcw,
+  ScanLine,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -32,6 +35,11 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { useLicenseEntitlement } from '@/hooks/useLicenseEntitlement';
 import { LicenseBanner } from '@/components/LicenseBanner';
+import {
+  compressStickerImage,
+  runStickerOcr,
+  type StickerOcrPayload,
+} from '@/lib/stickerOcr';
 import {
   ALL_TIME_ADDON_CODES,
   CLINICAL_MACROS,
@@ -50,6 +58,11 @@ interface CaseRecord {
   case_ref: string;
   patient_first_name: string;
   patient_surname: string;
+  medical_aid_name: string | null;
+  medical_aid_number: string | null;
+  dependent_code: string | null;
+  patient_cellphone: string | null;
+  facility_name: string | null;
   sticker_storage_path: string | null;
   service_date: string;
   referring_surgeon: string;
@@ -118,9 +131,19 @@ export default function PractitionerCapturePage() {
   const [existingStickerPath, setExistingStickerPath] = useState<string | null>(null);
   const [queryReplyText, setQueryReplyText] = useState('');
 
-  // Sticker Upload
+  // Sticker Upload & Vision OCR State
   const [stickerFile, setStickerFile] = useState<File | null>(null);
   const [stickerPreviewUrl, setStickerPreviewUrl] = useState<string | null>(null);
+  const [ocrScanning, setOcrScanning] = useState(false);
+  const [ocrResult, setOcrResult] = useState<StickerOcrPayload | null>(null);
+  const [ocrNotice, setOcrNotice] = useState<string | null>(null);
+
+  // Extracted Medical Scheme & Hospital Metadata (populated by OCR or editable)
+  const [medicalAidName, setMedicalAidName] = useState('');
+  const [medicalAidNumber, setMedicalAidNumber] = useState('');
+  const [dependentCode, setDependentCode] = useState('');
+  const [patientCellphone, setPatientCellphone] = useState('');
+  const [facilityName, setFacilityName] = useState('');
 
   // Core Capture Fields
   const [patientFirstName, setPatientFirstName] = useState('');
@@ -183,7 +206,7 @@ export default function PractitionerCapturePage() {
       const { data, error } = await supabase
         .from('cases')
         .select(
-          'id, case_ref, patient_first_name, patient_surname, sticker_storage_path, service_date, referring_surgeon, start_time, end_time, duration_minutes, calculated_time_units, primary_icd10, primary_icd10_desc, secondary_icd10, tariffs, clinical_notes, status, office_query_note, billed_invoice_ref, created_at'
+          'id, case_ref, patient_first_name, patient_surname, medical_aid_name, medical_aid_number, dependent_code, patient_cellphone, facility_name, sticker_storage_path, service_date, referring_surgeon, start_time, end_time, duration_minutes, calculated_time_units, primary_icd10, primary_icd10_desc, secondary_icd10, tariffs, clinical_notes, status, office_query_note, billed_invoice_ref, created_at'
         )
         .eq('client_id', uid)
         .order('created_at', { ascending: false })
@@ -384,17 +407,102 @@ export default function PractitionerCapturePage() {
       .slice(0, 15);
   }, [icdCatalogue, icdQuery, selectedIcds]);
 
-  // Handlers: Sticker Photo
-  function handleStickerSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setStickerFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setStickerPreviewUrl(objectUrl);
+  // Apply extracted OCR payload to form fields
+  const applyOcrExtraction = useCallback((ocr: StickerOcrPayload) => {
+    setOcrResult(ocr);
+    if (ocr.patient_first_name) setPatientFirstName(ocr.patient_first_name);
+    if (ocr.patient_surname) setPatientSurname(ocr.patient_surname);
+    if (ocr.medical_aid_name) setMedicalAidName(ocr.medical_aid_name);
+    if (ocr.medical_aid_number) setMedicalAidNumber(ocr.medical_aid_number);
+    if (ocr.dependent_code) setDependentCode(ocr.dependent_code);
+    if (ocr.patient_cellphone) setPatientCellphone(ocr.patient_cellphone);
+    if (ocr.facility_name) setFacilityName(ocr.facility_name);
+    if (ocr.referring_surgeon) {
+      setReferringSurgeon((prev) => (prev.trim() ? prev : ocr.referring_surgeon));
+    }
+  }, []);
+
+  // Handlers: Sticker Photo + Automatic Compression & Vision OCR
+  async function handleStickerSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
+
+    setOcrNotice(null);
+    setOcrResult(null);
+
+    if (stickerPreviewUrl) {
+      URL.revokeObjectURL(stickerPreviewUrl);
+    }
+    const immediatePreview = URL.createObjectURL(rawFile);
+    setStickerPreviewUrl(immediatePreview);
+    setStickerFile(rawFile);
+
+    setOcrScanning(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.access_token) {
+        const { compressedFile, ocr } = await runStickerOcr(
+          rawFile,
+          session.access_token
+        );
+        setStickerFile(compressedFile);
+        applyOcrExtraction(ocr);
+      } else {
+        const { compressedFile } = await compressStickerImage(rawFile);
+        setStickerFile(compressedFile);
+      }
+    } catch (err) {
+      // Fallback: still keep compressed image so upload stays fast even if OCR fails
+      try {
+        const { compressedFile } = await compressStickerImage(rawFile);
+        setStickerFile(compressedFile);
+      } catch {
+        // Keep rawFile if canvas compression fails
+      }
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Auto-scan unavailable — sticker saved for manual entry.';
+      setOcrNotice(msg);
+    } finally {
+      setOcrScanning(false);
+    }
+  }
+
+  async function handleRescanSticker() {
+    if (!stickerFile || ocrScanning) return;
+    setOcrNotice(null);
+    setOcrScanning(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Session expired — please sign in again.');
+      }
+      const { compressedFile, ocr } = await runStickerOcr(
+        stickerFile,
+        session.access_token
+      );
+      setStickerFile(compressedFile);
+      applyOcrExtraction(ocr);
+    } catch (err) {
+      setOcrNotice(
+        err instanceof Error ? err.message : 'Could not re-scan sticker image.'
+      );
+    } finally {
+      setOcrScanning(false);
+    }
   }
 
   function clearSticker() {
     setStickerFile(null);
+    setOcrResult(null);
+    setOcrNotice(null);
+    setOcrScanning(false);
     if (stickerPreviewUrl) {
       URL.revokeObjectURL(stickerPreviewUrl);
       setStickerPreviewUrl(null);
@@ -426,6 +534,23 @@ export default function PractitionerCapturePage() {
     setQueryReplyText('');
     setPatientFirstName(record.patient_first_name);
     setPatientSurname(record.patient_surname);
+    setMedicalAidName(
+      record.medical_aid_name && record.medical_aid_name !== 'On Sticker'
+        ? record.medical_aid_name
+        : ''
+    );
+    setMedicalAidNumber(
+      record.medical_aid_number && record.medical_aid_number !== 'On Sticker'
+        ? record.medical_aid_number
+        : ''
+    );
+    setDependentCode(record.dependent_code || '');
+    setPatientCellphone(record.patient_cellphone || '');
+    setFacilityName(
+      record.facility_name && record.facility_name !== 'On Sticker'
+        ? record.facility_name
+        : ''
+    );
     setServiceDate(record.service_date);
     setReferringSurgeon(record.referring_surgeon);
     setStartTime(record.start_time?.slice(0, 5) || '08:00');
@@ -458,6 +583,11 @@ export default function PractitionerCapturePage() {
     setQueryReplyText('');
     setPatientFirstName('');
     setPatientSurname('');
+    setMedicalAidName('');
+    setMedicalAidNumber('');
+    setDependentCode('');
+    setPatientCellphone('');
+    setFacilityName('');
     setSelectedTariffs([]);
     setSelectedIcds([]);
     setClinicalNotes('');
@@ -567,7 +697,6 @@ export default function PractitionerCapturePage() {
     setFormError(null);
     setFormSuccess(null);
 
-    // Enforce monthly Starter quota on brand-new submissions (resubmitting queried cases is always allowed)
     if (!editingCase && !entitlement.canSubmitCase) {
       setFormError(
         entitlement.blockReason ||
@@ -613,6 +742,7 @@ export default function PractitionerCapturePage() {
           .upload(filePath, stickerFile, {
             cacheControl: '3600',
             upsert: false,
+            contentType: stickerFile.type || 'image/jpeg',
           });
 
         if (uploadError) {
@@ -623,6 +753,12 @@ export default function PractitionerCapturePage() {
 
       const primaryIcd = selectedIcds[0];
       const secondaryIcds = selectedIcds.slice(1);
+
+      const resolvedMedAid = medicalAidName.trim() || 'On Sticker';
+      const resolvedMedNo = medicalAidNumber.trim() || 'On Sticker';
+      const resolvedDepCode = dependentCode.trim() || '00';
+      const resolvedCell = patientCellphone.trim() || null;
+      const resolvedFacility = facilityName.trim() || 'On Sticker';
 
       if (editingCase) {
         const priorParsed = splitNotesAndResolution(editingCase.clinical_notes);
@@ -649,6 +785,11 @@ export default function PractitionerCapturePage() {
           .update({
             patient_first_name: patientFirstName.trim(),
             patient_surname: patientSurname.trim(),
+            medical_aid_name: resolvedMedAid,
+            medical_aid_number: resolvedMedNo,
+            dependent_code: resolvedDepCode,
+            patient_cellphone: resolvedCell,
+            facility_name: resolvedFacility,
             sticker_storage_path: stickerStoragePath,
             service_date: serviceDate,
             referring_surgeon: referringSurgeon.trim(),
@@ -679,6 +820,7 @@ export default function PractitionerCapturePage() {
             previous_query: editingCase.office_query_note,
             resolution_reply: queryReplyText.trim() || null,
             new_sticker_uploaded: Boolean(stickerFile),
+            ocr_used: Boolean(ocrResult),
             tariff_count: selectedTariffs.length,
           },
         });
@@ -689,34 +831,39 @@ export default function PractitionerCapturePage() {
         setQueryReplyText('');
         setPatientFirstName('');
         setPatientSurname('');
+        setMedicalAidName('');
+        setMedicalAidNumber('');
+        setDependentCode('');
+        setPatientCellphone('');
+        setFacilityName('');
         setSelectedTariffs([]);
         setSelectedIcds([]);
         setClinicalNotes('');
         clearSticker();
 
         setFormSuccess(
-          `Case ${resolvedRef} updated and resubmitted to the billing office.`
+          `Case ${resolvedRef} updated and resubmitted to the Medical Bureau.`
         );
         await fetchMyCases(userId);
         return;
       }
 
-      // Insert brand-new case linked to active licence
+      // Insert brand-new case linked to active licence & Medical Bureau
       const { data: insertedCase, error: insertError } = await supabase
         .from('cases')
         .insert({
           client_id: userId,
-        bureau_license_id: entitlement.bureauLicenseId,
+          bureau_license_id: entitlement.bureauLicenseId,
           license_id: entitlement.license?.id ?? null,
           patient_first_name: patientFirstName.trim(),
           patient_surname: patientSurname.trim(),
-          medical_aid_name: 'On Sticker',
-          medical_aid_number: 'On Sticker',
-          dependent_code: '00',
-          patient_cellphone: null,
+          medical_aid_name: resolvedMedAid,
+          medical_aid_number: resolvedMedNo,
+          dependent_code: resolvedDepCode,
+          patient_cellphone: resolvedCell,
           sticker_storage_path: stickerStoragePath,
           service_date: serviceDate,
-          facility_name: 'On Sticker',
+          facility_name: resolvedFacility,
           referring_surgeon: referringSurgeon.trim(),
           start_time: startTime,
           end_time: endTime,
@@ -747,6 +894,7 @@ export default function PractitionerCapturePage() {
             icd_count: selectedIcds.length,
             duration_minutes: timing.durationMinutes,
             license_key: entitlement.activeKey,
+            ocr_used: Boolean(ocrResult),
           },
         });
       }
@@ -754,13 +902,18 @@ export default function PractitionerCapturePage() {
       // Reset patient fields while keeping Surgeon & Service Date sticky
       setPatientFirstName('');
       setPatientSurname('');
+      setMedicalAidName('');
+      setMedicalAidNumber('');
+      setDependentCode('');
+      setPatientCellphone('');
+      setFacilityName('');
       setSelectedTariffs([]);
       setSelectedIcds([]);
       setClinicalNotes('');
       clearSticker();
 
       setFormSuccess(
-        `Case ${insertedCase?.case_ref ?? ''} submitted to billing office. Ready for next patient.`
+        `Case ${insertedCase?.case_ref ?? ''} submitted to Medical Bureau. Ready for next patient.`
       );
       await Promise.all([fetchMyCases(userId), entitlement.refreshUsage()]);
     } catch (err) {
@@ -873,7 +1026,7 @@ export default function PractitionerCapturePage() {
             {editingCase.office_query_note && (
               <div className="p-3 rounded-xl bg-[#090B0E]/80 border border-amber-500/40 space-y-1">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-amber-300 block">
-                  Billing Office Request
+                  Medical Bureau Request
                 </span>
                 <p className="text-sm font-medium text-amber-100">
                   {editingCase.office_query_note}
@@ -883,7 +1036,7 @@ export default function PractitionerCapturePage() {
 
             <div className="space-y-1.5">
               <label className="block text-[11px] font-mono uppercase tracking-wider text-amber-200">
-                Your Reply / Action Taken (Sent to Billing Office)
+                Your Reply / Action Taken (Sent to Medical Bureau)
               </label>
               <input
                 ref={queryReplyInputRef}
@@ -911,7 +1064,7 @@ export default function PractitionerCapturePage() {
           </div>
           <div className="flex items-center gap-2 text-xs text-[#8B98AB]">
             <ShieldCheck className="w-4 h-4 text-[#00D2C6]" />
-            <span>POPIA Encrypted · Instant Office Sync</span>
+            <span>POPIA Encrypted · Instant Bureau Sync</span>
           </div>
         </div>
 
@@ -947,17 +1100,18 @@ export default function PractitionerCapturePage() {
 
         {/* Main Capture Form */}
         <form onSubmit={handleSubmitCase} className="space-y-6">
-          {/* 1. Hospital Sticker Photo */}
+          {/* 1. Hospital Sticker Photo + AI OCR Auto-Fill */}
           <section className="bg-[#14181F] border border-[#232B38] rounded-2xl p-5 sm:p-6 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
                 <Camera className="w-4 h-4 text-[#00D2C6]" />
                 <h2 className="font-[family-name:var(--font-montserrat)] font-bold text-sm uppercase tracking-wider text-white">
                   1. Hospital Patient Sticker
                 </h2>
               </div>
-              <span className="text-[11px] font-mono text-[#8B98AB]">
-                SCHEME / MEMBER NO ON STICKER
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-[#00D2C6]">
+                <ScanLine className="w-3.5 h-3.5" />
+                <span>AI STICKER OCR AUTO-FILL</span>
               </span>
             </div>
 
@@ -989,38 +1143,141 @@ export default function PractitionerCapturePage() {
                 <span className="text-sm font-semibold text-white">
                   {existingStickerPath
                     ? 'Tap to Upload Replacement Hospital Sticker'
-                    : 'Tap to Snap or Upload Hospital Sticker'}
+                    : 'Tap to Snap Hospital Sticker (Auto-Fills Patient & Scheme)'}
                 </span>
                 <span className="text-xs text-[#8B98AB]">
-                  Captures medical aid, member number, dependent code &amp; contact details
+                  Extracts Name, Surname, Medical Aid, Member #, Dep Code &amp; Cellphone automatically
                 </span>
               </button>
             ) : (
-              <div className="relative rounded-xl overflow-hidden border border-[#2C3545] bg-[#0E1218] p-3 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={stickerPreviewUrl}
-                    alt="Hospital sticker preview"
-                    className="w-16 h-16 object-cover rounded-lg border border-[#232B38]"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-white truncate">
-                      {stickerFile?.name}
-                    </p>
-                    <p className="text-xs text-[#00D2C6] font-mono">
-                      Ready for encrypted upload
-                    </p>
+              <div className="space-y-3">
+                <div className="relative rounded-xl overflow-hidden border border-[#2C3545] bg-[#0E1218] p-3 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={stickerPreviewUrl}
+                      alt="Hospital sticker preview"
+                      className="w-16 h-16 object-cover rounded-lg border border-[#232B38]"
+                    />
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-sm font-medium text-white truncate">
+                        {stickerFile?.name}
+                      </p>
+                      {ocrScanning ? (
+                        <p className="inline-flex items-center gap-1.5 text-xs text-[#00D2C6] font-mono">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Scanning sticker fields with AI OCR...</span>
+                        </p>
+                      ) : ocrResult ? (
+                        <p className="inline-flex items-center gap-1.5 text-xs text-emerald-300 font-mono">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>
+                            Auto-filled ({ocrResult.confidence} confidence) — verify below
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-[#00D2C6] font-mono">
+                          Ready for encrypted upload
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      disabled={ocrScanning}
+                      onClick={handleRescanSticker}
+                      className="p-2 rounded-lg bg-[#14181F] hover:bg-[#1B212B] border border-[#232B38] text-[#00D2C6] disabled:opacity-50 transition"
+                      title="Re-scan sticker with OCR"
+                    >
+                      <ScanLine className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearSticker}
+                      className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition"
+                      title="Remove sticker"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={clearSticker}
-                  className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition"
-                  title="Remove sticker"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+
+                {ocrNotice && (
+                  <div className="px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-400/35 text-[11px] text-amber-200">
+                    {ocrNotice}
+                  </div>
+                )}
+
+                {/* Extracted Medical Scheme & Facility Strip */}
+                {(medicalAidName ||
+                  medicalAidNumber ||
+                  patientCellphone ||
+                  facilityName) && (
+                  <div className="rounded-xl border border-[#00D2C6]/30 bg-[#0E1218] p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                    <div>
+                      <span className="block font-mono text-[10px] uppercase text-[#8B98AB]">
+                        Medical Aid
+                      </span>
+                      <input
+                        type="text"
+                        value={medicalAidName}
+                        onChange={(e) => setMedicalAidName(e.target.value)}
+                        placeholder="Scheme"
+                        className="mt-0.5 w-full bg-transparent font-semibold text-white focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
+                      />
+                    </div>
+                    <div>
+                      <span className="block font-mono text-[10px] uppercase text-[#8B98AB]">
+                        Member # / Dep
+                      </span>
+                      <div className="mt-0.5 flex items-center gap-1 font-mono font-semibold text-[#00D2C6]">
+                        <input
+                          type="text"
+                          value={medicalAidNumber}
+                          onChange={(e) => setMedicalAidNumber(e.target.value)}
+                          placeholder="Member No"
+                          className="w-24 bg-transparent focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
+                        />
+                        <span>-</span>
+                        <input
+                          type="text"
+                          value={dependentCode}
+                          onChange={(e) => setDependentCode(e.target.value)}
+                          placeholder="00"
+                          className="w-8 bg-transparent focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <span className="flex items-center gap-1 font-mono text-[10px] uppercase text-[#8B98AB]">
+                        <Phone className="w-2.5 h-2.5" />
+                        Cellphone
+                      </span>
+                      <input
+                        type="text"
+                        value={patientCellphone}
+                        onChange={(e) => setPatientCellphone(e.target.value)}
+                        placeholder="082..."
+                        className="mt-0.5 w-full bg-transparent font-mono text-white focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
+                      />
+                    </div>
+                    <div>
+                      <span className="flex items-center gap-1 font-mono text-[10px] uppercase text-[#8B98AB]">
+                        <Building2 className="w-2.5 h-2.5" />
+                        Facility
+                      </span>
+                      <input
+                        type="text"
+                        value={facilityName}
+                        onChange={(e) => setFacilityName(e.target.value)}
+                        placeholder="Hospital"
+                        className="mt-0.5 w-full bg-transparent text-white truncate focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -1570,7 +1827,7 @@ export default function PractitionerCapturePage() {
                 ) : editingCase ? (
                   <>
                     <RotateCcw className="w-4 h-4" />
-                    <span>Save &amp; Resubmit to Billing Office</span>
+                    <span>Save &amp; Resubmit to Medical Bureau</span>
                   </>
                 ) : !entitlement.canSubmitCase ? (
                   <>
@@ -1692,6 +1949,12 @@ export default function PractitionerCapturePage() {
                         {c.start_time?.slice(0, 5)} – {c.end_time?.slice(0, 5)} (
                         {c.duration_minutes}m / {c.calculated_time_units}u)
                       </span>
+                      {c.medical_aid_name && c.medical_aid_name !== 'On Sticker' && (
+                        <>
+                          <span>·</span>
+                          <span className="text-[#C5D0DF]">{c.medical_aid_name}</span>
+                        </>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap gap-1.5">
@@ -1736,16 +1999,16 @@ export default function PractitionerCapturePage() {
                       </div>
                     )}
 
-                    {/* Actionable Billing Office Query Box */}
+                    {/* Actionable Medical Bureau Query Box */}
                     {c.status === 'QUERIED' && (
                       <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-400/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="space-y-1">
                           <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300 block">
-                            Action Required · Billing Office Query
+                            Action Required · Medical Bureau Query
                           </span>
                           <p className="text-xs sm:text-sm font-semibold text-amber-100">
                             {c.office_query_note ||
-                              'Billing office requested clarification on this case.'}
+                              'Medical Bureau requested clarification on this case.'}
                           </p>
                         </div>
 
