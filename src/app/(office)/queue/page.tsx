@@ -3,12 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AlertTriangle,
   Building2,
-  Check,
   CheckCircle2,
-  Clock,
-  Copy,
   CreditCard,
   Download,
   ExternalLink,
@@ -24,7 +20,6 @@ import {
   Search,
   Send,
   ShieldCheck,
-  Stethoscope,
   UserCheck,
   Users,
   X,
@@ -152,7 +147,6 @@ export default function BillingOfficeQueuePage() {
   const [pmsAccountInput, setPmsAccountInput] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -244,7 +238,9 @@ export default function BillingOfficeQueuePage() {
         if (profile?.bureau_license_id) {
           const { data: licData } = await supabase
             .from('practice_licenses')
-            .select('id, practice_name, contact_email, license_key, plan_tier, status, max_practitioners, expires_at')
+            .select(
+              'id, practice_name, contact_email, license_key, plan_tier, status, max_practitioners, expires_at'
+            )
             .eq('id', profile.bureau_license_id)
             .maybeSingle();
 
@@ -339,7 +335,9 @@ export default function BillingOfficeQueuePage() {
 
     const { data: lic, error } = await supabase
       .from('practice_licenses')
-      .select('id, practice_name, contact_email, license_key, plan_tier, status, max_practitioners, expires_at')
+      .select(
+        'id, practice_name, contact_email, license_key, plan_tier, status, max_practitioners, expires_at'
+      )
       .eq('license_key', cleaned)
       .maybeSingle();
 
@@ -405,7 +403,9 @@ export default function BillingOfficeQueuePage() {
   }
 
   // Trigger PayFast Checkout for Billing Bureau Packages
-  async function handleStartBureauCheckout(planTier: 'BUREAU_STARTER' | 'BUREAU_SCALE' | 'BUREAU_PAID') {
+  async function handleStartBureauCheckout(
+    planTier: 'BUREAU_STARTER' | 'BUREAU_SCALE' | 'BUREAU_PAID'
+  ) {
     setCheckoutTierLoading(planTier);
     try {
       const res = await fetch('/api/payfast/checkout', {
@@ -413,7 +413,8 @@ export default function BillingOfficeQueuePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planTier,
-          practiceName: bureauLicense?.practice_name || `${clerkName} Billing Bureau`,
+          practiceName:
+            bureauLicense?.practice_name || `${clerkName} Billing Bureau`,
           contactEmail: userEmail,
           licenseKey: bureauLicense?.license_key || '',
         }),
@@ -490,7 +491,9 @@ export default function BillingOfficeQueuePage() {
         prov?.full_name,
         prov?.practice_name,
         prov?.practice_number,
-        ...(Array.isArray(c.tariffs) ? c.tariffs.map((t) => t.procedure_code) : []),
+        ...(Array.isArray(c.tariffs)
+          ? c.tariffs.map((t) => t.procedure_code)
+          : []),
       ]
         .filter(Boolean)
         .join(' ')
@@ -646,7 +649,8 @@ export default function BillingOfficeQueuePage() {
       selectedProviderId === 'ALL'
         ? 'all-clintechs'
         : (
-            providerList.find((p) => p.id === selectedProviderId)?.name || 'provider'
+            providerList.find((p) => p.id === selectedProviderId)?.name ||
+            'provider'
           )
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-');
@@ -662,6 +666,14 @@ export default function BillingOfficeQueuePage() {
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.replace('/');
+  }
+
+  function handleModalBackOrClose() {
+    if (!bureauLicense) {
+      handleSignOut();
+    } else {
+      setLicenseModalOpen(false);
+    }
   }
 
   if (authLoading) {
@@ -1215,7 +1227,7 @@ export default function BillingOfficeQueuePage() {
       {/* Bureau Office Licence Activation & PayFast Purchase Modal */}
       {licenseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-2xl border border-[#2C3545] bg-[#14181F] p-6 shadow-2xl space-y-5">
+          <div className="w-full max-w-xl rounded-2xl border border-[#2C3545] bg-[#14181F] p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#232B38] pb-3">
               <div className="flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-[#00D2C6]" />
@@ -1223,15 +1235,14 @@ export default function BillingOfficeQueuePage() {
                   Billing Bureau Office Licence
                 </h3>
               </div>
-              {bureauLicense && (
-                <button
-                  type="button"
-                  onClick={() => setLicenseModalOpen(false)}
-                  className="rounded-lg p-1 text-[#8B98AB] hover:bg-[#1B212B] hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setLicenseModalOpen(false)}
+                aria-label="Close modal"
+                className="rounded-lg p-1.5 text-[#8B98AB] hover:bg-[#1B212B] hover:text-white transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
             {/* Option A: Enter Issued Bureau Key */}
@@ -1331,13 +1342,35 @@ export default function BillingOfficeQueuePage() {
                       <CreditCard className="h-3.5 w-3.5" />
                       <span>
                         {checkoutTierLoading === pkg.tier
-                          ? 'Redirecting...'
+                          ? 'Connecting...'
                           : 'Subscribe'}
                       </span>
                     </button>
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Footer Navigation: Back / Switch Account & Cancel */}
+            <div className="border-t border-[#232B38] pt-4 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleModalBackOrClose}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#2C3545] bg-[#0E1218] px-3.5 py-2 text-xs font-medium text-[#8B98AB] hover:text-white transition"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>
+                  {bureauLicense ? '← Back to Queue' : '← Back / Switch Account'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLicenseModalOpen(false)}
+                className="rounded-xl border border-[#2C3545] bg-[#1B212B] px-4 py-2 text-xs font-semibold text-[#C5D0DF] hover:text-white transition"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
