@@ -15,7 +15,6 @@ import {
   Loader2,
   Lock,
   Mail,
-  MessageSquare,
   ShieldCheck,
   Sparkles,
   Stethoscope,
@@ -36,9 +35,8 @@ export default function ClinTechBillsLandingPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
-  // Existing session check (shows quick "Open Workspace" button if already logged in)
+  // Existing session check
   const [existingRole, setExistingRole] = useState<'client' | 'office' | null>(null);
-  const [existingEmail, setExistingEmail] = useState<string>('');
 
   // Pricing tab toggle
   const [audience, setAudience] = useState<PricingAudience>('practitioner');
@@ -61,7 +59,7 @@ export default function ClinTechBillsLandingPage() {
   const [trialModalOpen, setTrialModalOpen] = useState(false);
   const [trialName, setTrialName] = useState('');
   const [trialPractice, setTrialPractice] = useState('');
-  const [trialRole, setTrialRole] = useState<'Clinical Technologist (075)' | 'Medical Billing Bureau'>(
+  const [trialRole, setTrialRole] = useState<'Clinical Technologist (075)' | 'Medical Bureau'>(
     'Clinical Technologist (075)'
   );
   const [trialEmail, setTrialEmail] = useState('');
@@ -87,7 +85,6 @@ export default function ClinTechBillsLandingPage() {
       } = await supabase.auth.getUser();
       if (!active || !user) return;
 
-      setExistingEmail(user.email || '');
       setCheckoutEmail(user.email || '');
 
       const { data: profile } = await supabase
@@ -149,12 +146,10 @@ export default function ClinTechBillsLandingPage() {
         return;
       }
 
-      // Sign Up Flow
       if (!fullName.trim() || !practiceName.trim()) {
-        throw new Error('Full name and Practice / Bureau name are required.');
+        throw new Error('Full name and Practice / Medical Bureau name are required.');
       }
 
-      // Optional: Resolve entered MB-CTB licence key before creating profile
       let resolvedLicenseId: string | null = null;
       const cleanedKey = inviteKey.trim().toUpperCase();
 
@@ -267,7 +262,7 @@ export default function ClinTechBillsLandingPage() {
         ``,
         `Please issue a 30-day ClinTechBills Pro Trial key for:`,
         `• Name: ${trialName}`,
-        `• Practice / Bureau: ${trialPractice}`,
+        `• Practice / Medical Bureau: ${trialPractice}`,
         `• Role: ${trialRole}`,
         `• Email: ${trialEmail}`,
         `• Estimated Monthly Volume: ${trialMonthlyCases}`,
@@ -277,40 +272,46 @@ export default function ClinTechBillsLandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#08080B] text-[#F3F6FA] selection:bg-[#00D2C6] selection:text-[#08080B]">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-40 border-b border-[#232B38] bg-[#08080B]/90 backdrop-blur-md">
+    <div className="min-h-screen bg-[#06070A] text-[#F3F6FA] selection:bg-[#00D2C6] selection:text-[#05070A] relative overflow-x-hidden">
+      {/* Ambient Metallic Sheen & Studio Lighting */}
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-15%,rgba(226,232,240,0.11),transparent),radial-gradient(circle_at_85%_18%,rgba(0,210,198,0.14),transparent_42%),radial-gradient(circle_at_12%_75%,rgba(148,163,184,0.07),transparent_45%)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_75%_60%_at_50%_20%,#000_55%,transparent_100%)]" />
+
+      {/* Top Navigation — Brushed Obsidian & Chrome Rail */}
+      <header className="sticky top-0 z-40 border-b border-white/15 bg-[#080A0F]/85 backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,0.65)]">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/mediburgh-icon.png"
-              alt="MediBurgh Icon"
-              className="h-9 w-9 rounded-lg border border-[#232B38] bg-[#0E1218] p-1 object-contain shadow-lg shadow-[#00D2C6]/10"
-            />
+            <div className="relative rounded-xl p-[1px] bg-gradient-to-b from-white/45 via-white/15 to-[#00D2C6]/40 shadow-[0_0_20px_rgba(0,210,198,0.18)]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/mediburgh-icon.png"
+                alt="MediBurgh Icon"
+                className="h-9 w-9 rounded-[11px] bg-[#0B0E14] p-1 object-contain"
+              />
+            </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-[family-name:var(--font-montserrat)] text-base font-extrabold tracking-wide text-white">
-                  CLINTECH<span className="text-[#00D2C6]">BILLS</span>
+                <span className="font-[family-name:var(--font-montserrat)] text-base font-extrabold tracking-wide bg-gradient-to-b from-white via-[#E5ECF5] to-[#94A3B8] bg-clip-text text-transparent">
+                  CLINTECH<span className="bg-gradient-to-r from-[#5CFFF4] to-[#00B8C4] bg-clip-text text-transparent">BILLS</span>
                 </span>
-                <span className="hidden sm:inline-flex rounded border border-[#00D2C6]/35 bg-[#00D2C6]/10 px-2 py-0.5 font-mono text-[10px] font-bold text-[#00D2C6]">
+                <span className="hidden sm:inline-flex rounded-md border border-white/20 bg-gradient-to-b from-white/15 to-white/5 px-2 py-0.5 font-mono text-[10px] font-bold text-[#E2E8F0] shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]">
                   DISCIPLINE 075
                 </span>
               </div>
-              <p className="text-[10px] font-mono uppercase tracking-wider text-[#8B98AB]">
+              <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#8E9BAE]">
                 By MediBurgh Healthcare Intelligence
               </p>
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center gap-6 text-xs font-semibold text-[#C5D0DF]">
-            <a href="#workflow" className="hover:text-[#00D2C6] transition">
+          <nav className="hidden md:flex items-center gap-7 text-xs font-semibold text-[#C5D0DF]">
+            <a href="#workflow" className="hover:text-white transition">
               Theatre Workflow
             </a>
-            <a href="#pricing" className="hover:text-[#00D2C6] transition">
-              Pricing &amp; Bureaux
+            <a href="#pricing" className="hover:text-white transition">
+              Pricing &amp; Medical Bureaus
             </a>
-            <a href="#popia" className="hover:text-[#00D2C6] transition">
+            <a href="#popia" className="hover:text-white transition">
               POPIA Security
             </a>
           </nav>
@@ -322,7 +323,7 @@ export default function ClinTechBillsLandingPage() {
                 onClick={() =>
                   router.push(existingRole === 'office' ? '/queue' : '/capture')
                 }
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#00D2C6] px-4 py-2 text-xs font-extrabold text-[#08080B] hover:bg-[#00E5D8] transition shadow-lg shadow-[#00D2C6]/20"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-[#45FFF3] via-[#00D2C6] to-[#009EA8] px-4 py-2 text-xs font-extrabold text-[#05070A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_8px_24px_rgba(0,210,198,0.28)] hover:brightness-110 transition"
               >
                 <span>Open Workspace</span>
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -332,14 +333,14 @@ export default function ClinTechBillsLandingPage() {
                 <button
                   type="button"
                   onClick={() => openAuth('signin')}
-                  className="rounded-xl border border-[#2C3545] bg-[#14181F] px-3.5 py-2 text-xs font-bold text-white hover:border-[#00D2C6]/50 transition"
+                  className="rounded-xl border border-white/20 bg-gradient-to-b from-[#232B38] to-[#11151D] px-3.5 py-2 text-xs font-bold text-[#F1F5F9] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] hover:border-white/40 transition"
                 >
                   Sign In
                 </button>
                 <button
                   type="button"
                   onClick={() => openAuth('signup', 'client')}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#00D2C6] px-4 py-2 text-xs font-extrabold text-[#08080B] hover:bg-[#00E5D8] transition shadow-lg shadow-[#00D2C6]/20"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-[#45FFF3] via-[#00D2C6] to-[#009EA8] px-4 py-2 text-xs font-extrabold text-[#05070A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_8px_24px_rgba(0,210,198,0.28)] hover:brightness-110 transition"
                 >
                   <span>Start Free</span>
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -351,32 +352,36 @@ export default function ClinTechBillsLandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden border-b border-[#1A202B]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(0,210,198,0.12),transparent_45%)]" />
+      <section className="relative border-b border-white/10">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16 sm:py-24 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#00D2C6]/35 bg-[#00D2C6]/10 px-3.5 py-1.5 font-mono text-[11px] font-semibold text-[#00D2C6]">
-              <Sparkles className="h-3.5 w-3.5" />
+            {/* Liquid Chrome Pill Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-gradient-to-b from-[#242C3A]/90 to-[#11151E]/90 px-4 py-1.5 font-mono text-[11px] font-bold tracking-wider text-[#E2E8F0] shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_6px_20px_rgba(0,0,0,0.5)]">
+              <Sparkles className="h-3.5 w-3.5 text-[#00D2C6]" />
               <span>SOUTH AFRICA · DISCIPLINE 075 REVENUE CAPTURE</span>
             </div>
 
-            <h1 className="font-[family-name:var(--font-montserrat)] text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-[1.12]">
+            {/* Liquid Chrome Metallic Headline */}
+            <h1 className="font-[family-name:var(--font-montserrat)] text-3xl sm:text-5xl font-extrabold tracking-tight leading-[1.12] bg-gradient-to-b from-white via-[#E6ECF5] to-[#8C9AB0] bg-clip-text text-transparent drop-shadow-[0_2px_20px_rgba(255,255,255,0.08)]">
               Stop Losing Theatre Revenue to{' '}
-              <span className="text-[#00D2C6]">WhatsApp Sticker Photos.</span>
+              <span className="bg-gradient-to-r from-[#75FFF6] via-[#00D2C6] to-[#0096A6] bg-clip-text text-transparent">
+                WhatsApp Sticker Photos.
+              </span>
             </h1>
 
-            <p className="text-base sm:text-lg text-[#C5D0DF] leading-relaxed max-w-2xl">
+            <p className="text-base sm:text-lg text-[#B8C4D4] leading-relaxed max-w-2xl">
               ClinTechBills connects Clinical Technologists in theatre directly to
-              their billing desk in under 45 seconds. Snap hospital stickers,
+              their medical bureau in under 45 seconds. Snap hospital stickers,
               auto-calculate 30-minute units and after-hours modifiers, and export
               clean batches for GoodX, Elixir Live, and Healthbridge.
             </p>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
+            {/* Chrome & Brushed-Steel CTAs */}
+            <div className="flex flex-wrap items-center gap-3.5 pt-2">
               <button
                 type="button"
                 onClick={() => openAuth('signup', 'client')}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#00D2C6] px-6 py-3.5 text-sm font-extrabold text-[#08080B] hover:bg-[#00E5D8] transition shadow-xl shadow-[#00D2C6]/20"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#52FFF4] via-[#00D2C6] to-[#0099A3] px-6 py-3.5 text-sm font-extrabold text-[#05070A] shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_12px_32px_rgba(0,210,198,0.32)] hover:brightness-110 transition"
               >
                 <span>Start Free (15 Cases / Mo)</span>
                 <ArrowRight className="h-4 w-4" />
@@ -388,14 +393,14 @@ export default function ClinTechBillsLandingPage() {
                   setTrialSubmitted(false);
                   setTrialModalOpen(true);
                 }}
-                className="inline-flex items-center gap-2 rounded-xl border border-[#2C3545] bg-[#14181F] px-5 py-3.5 text-sm font-bold text-white hover:border-[#00D2C6]/50 transition"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-gradient-to-b from-[#283140] via-[#181E28] to-[#0F131A] px-5 py-3.5 text-sm font-bold text-[#F1F5F9] shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_10px_25px_rgba(0,0,0,0.6)] hover:border-[#00D2C6]/60 transition"
               >
                 <KeyRound className="h-4 w-4 text-[#00D2C6]" />
                 <span>Request 30-Day VIP Trial</span>
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 text-xs text-[#8B98AB]">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 text-xs text-[#94A3B8]">
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-[#00D2C6]" />
                 Android &amp; iOS Home-Screen PWA
@@ -406,93 +411,95 @@ export default function ClinTechBillsLandingPage() {
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-[#00D2C6]" />
-                Multi-ClinTech Bureau Isolation
+                Multi-ClinTech Medical Bureau Isolation
               </span>
             </div>
           </div>
 
-          {/* Live Theatre Capture Preview Card */}
+          {/* Chrome-Framed Live Theatre Capture Card */}
           <div className="lg:col-span-5">
-            <div className="rounded-3xl border border-[#2C3545] bg-[#14181F] p-5 sm:p-6 shadow-2xl space-y-4">
-              <div className="flex items-center justify-between border-b border-[#232B38] pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#00D2C6] animate-pulse" />
-                  <span className="font-mono text-xs font-bold text-white">
-                    LIVE THEATRE CAPTURE
-                  </span>
-                </div>
-                <span className="rounded bg-purple-500/15 border border-purple-400/40 px-2 py-0.5 font-mono text-[10px] font-bold text-purple-200">
-                  AFTER-HOURS DETECTED
-                </span>
-              </div>
-
-              <div className="rounded-2xl border border-[#232B38] bg-[#0E1218] p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-mono text-[10px] text-[#00D2C6] block">
-                      CASE REF · CTB-2026-084
+            <div className="relative rounded-3xl p-[1px] bg-gradient-to-b from-white/45 via-white/15 to-[#00D2C6]/45 shadow-[0_25px_60px_rgba(0,0,0,0.85),0_0_40px_rgba(0,210,198,0.12)]">
+              <div className="rounded-[23px] bg-gradient-to-b from-[#1B222E] via-[#11151E] to-[#0A0D12] p-5 sm:p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#00D2C6] shadow-[0_0_10px_#00D2C6] animate-pulse" />
+                    <span className="font-mono text-xs font-bold tracking-wider text-white">
+                      LIVE THEATRE CAPTURE
                     </span>
-                    <p className="text-base font-bold text-white">
-                      Johan Van Der Merwe
-                    </p>
-                    <p className="text-xs text-[#8B98AB]">
-                      Surgeon: Dr. K. Naidoo · Netcare Sunninghill
-                    </p>
                   </div>
-                  <span className="rounded-lg bg-emerald-500/15 border border-emerald-400/40 px-2.5 py-1 font-mono text-[10px] font-bold text-emerald-300">
-                    STICKER VERIFIED
+                  <span className="rounded-md border border-purple-300/35 bg-gradient-to-b from-purple-500/25 to-purple-900/20 px-2.5 py-0.5 font-mono text-[10px] font-bold text-purple-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
+                    AFTER-HOURS DETECTED
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 pt-1">
-                  <div className="rounded-xl bg-[#14181F] border border-[#232B38] p-2.5">
-                    <span className="text-[10px] font-mono text-[#8B98AB] block">
-                      DURATION
-                    </span>
-                    <span className="font-mono text-sm font-bold text-white">
-                      180 min
+                <div className="rounded-2xl border border-white/15 bg-gradient-to-b from-[#10141D] to-[#090B10] p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="font-mono text-[10px] font-bold tracking-wider text-[#00D2C6] block">
+                        CASE REF · CTB-2026-084
+                      </span>
+                      <p className="text-base font-bold text-white">
+                        Johan Van Der Merwe
+                      </p>
+                      <p className="text-xs text-[#8E9BAE]">
+                        Surgeon: Dr. K. Naidoo · Netcare Sunninghill
+                      </p>
+                    </div>
+                    <span className="rounded-lg border border-emerald-400/40 bg-gradient-to-b from-emerald-500/25 to-emerald-950/30 px-2.5 py-1 font-mono text-[10px] font-bold text-emerald-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
+                      STICKER VERIFIED
                     </span>
                   </div>
-                  <div className="rounded-xl bg-[#14181F] border border-[#232B38] p-2.5">
-                    <span className="text-[10px] font-mono text-[#8B98AB] block">
-                      30M UNITS
-                    </span>
-                    <span className="font-mono text-sm font-bold text-[#00D2C6]">
-                      6u (+4 add-on)
-                    </span>
+
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-b from-[#19202C] to-[#0F131B] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                      <span className="text-[10px] font-mono text-[#8E9BAE] block">
+                        DURATION
+                      </span>
+                      <span className="font-mono text-sm font-bold text-white">
+                        180 min
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-b from-[#19202C] to-[#0F131B] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                      <span className="text-[10px] font-mono text-[#8E9BAE] block">
+                        30M UNITS
+                      </span>
+                      <span className="font-mono text-sm font-bold text-[#00D2C6]">
+                        6u (+4 add-on)
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-b from-[#19202C] to-[#0F131B] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                      <span className="text-[10px] font-mono text-[#8E9BAE] block">
+                        PRIMARY ICD
+                      </span>
+                      <span className="font-mono text-sm font-bold text-white">
+                        I25.1
+                      </span>
+                    </div>
                   </div>
-                  <div className="rounded-xl bg-[#14181F] border border-[#232B38] p-2.5">
-                    <span className="text-[10px] font-mono text-[#8B98AB] block">
-                      PRIMARY ICD
+
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="rounded-md border border-[#00D2C6]/40 bg-gradient-to-b from-[#00D2C6]/20 to-[#00D2C6]/5 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[#67FFF5]">
+                      75063 ×1
                     </span>
-                    <span className="font-mono text-sm font-bold text-white">
-                      I25.1
+                    <span className="rounded-md border border-[#00D2C6]/40 bg-gradient-to-b from-[#00D2C6]/20 to-[#00D2C6]/5 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[#67FFF5]">
+                      75065 ×4
+                    </span>
+                    <span className="rounded-md border border-white/20 bg-gradient-to-b from-white/15 to-white/5 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[#E2E8F0]">
+                      GUARDRAIL CLEARED
                     </span>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="rounded bg-[#00D2C6]/15 border border-[#00D2C6]/35 px-2 py-0.5 font-mono text-[11px] font-bold text-[#00D2C6]">
-                    75063 ×1
-                  </span>
-                  <span className="rounded bg-[#00D2C6]/15 border border-[#00D2C6]/35 px-2 py-0.5 font-mono text-[11px] font-bold text-[#00D2C6]">
-                    75065 ×4
-                  </span>
-                  <span className="rounded bg-[#1D7AFC]/15 border border-[#1D7AFC]/35 px-2 py-0.5 font-mono text-[11px] font-bold text-[#7FB3FF]">
-                    GUARDRAIL CLEARED
-                  </span>
+                <div className="flex items-center justify-between text-xs text-[#94A3B8] pt-1">
+                  <span>Synced to Medical Bureau Desk in 0.4s</span>
+                  <button
+                    type="button"
+                    onClick={() => openAuth('signup', 'client')}
+                    className="font-bold text-[#00D2C6] hover:underline"
+                  >
+                    Try Live Capture →
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-[#8B98AB] pt-1">
-                <span>Synced to Bureau Desk in 0.4s</span>
-                <button
-                  type="button"
-                  onClick={() => openAuth('signup', 'client')}
-                  className="font-bold text-[#00D2C6] hover:underline"
-                >
-                  Try Live Capture →
-                </button>
               </div>
             </div>
           </div>
@@ -502,13 +509,13 @@ export default function ClinTechBillsLandingPage() {
       {/* Workflow & Feature Pillars */}
       <section id="workflow" className="mx-auto max-w-6xl px-4 sm:px-6 py-20 space-y-12">
         <div className="max-w-2xl space-y-2">
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#00D2C6]">
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-[#00D2C6]">
             Engineered For Discipline 075
           </p>
-          <h2 className="font-[family-name:var(--font-montserrat)] text-2xl sm:text-4xl font-extrabold text-white">
+          <h2 className="font-[family-name:var(--font-montserrat)] text-2xl sm:text-4xl font-extrabold bg-gradient-to-b from-white via-[#E5ECF5] to-[#94A3B8] bg-clip-text text-transparent">
             Every Minute in Theatre Accounted For.
           </h2>
-          <p className="text-sm sm:text-base text-[#8B98AB]">
+          <p className="text-sm sm:text-base text-[#94A3B8]">
             Designed from 15+ years of South African specialist medical billing
             experience to eliminate under-coded time units and lost patient stickers.
           </p>
@@ -528,8 +535,8 @@ export default function ClinTechBillsLandingPage() {
             },
             {
               icon: Users,
-              title: 'Multi-ClinTech Bureau Desk',
-              desc: 'Billing offices filter incoming cases by individual Clinical Technologist, inspect encrypted high-res stickers, and return queries in 1 click.',
+              title: 'Multi-ClinTech Medical Bureau Desk',
+              desc: 'Medical bureaus filter incoming cases by individual Clinical Technologist, inspect encrypted high-res stickers, and return queries in 1 click.',
             },
             {
               icon: FileSpreadsheet,
@@ -539,15 +546,15 @@ export default function ClinTechBillsLandingPage() {
           ].map((feat) => (
             <div
               key={feat.title}
-              className="rounded-2xl border border-[#232B38] bg-[#14181F] p-6 space-y-3 hover:border-[#00D2C6]/40 transition"
+              className="group relative rounded-2xl border border-white/15 bg-gradient-to-b from-[#1A212D] via-[#11161F] to-[#0B0E14] p-6 space-y-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_16px_40px_rgba(0,0,0,0.65)] hover:border-[#00D2C6]/50 transition"
             >
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#00D2C6]/35 bg-[#00D2C6]/10 text-[#00D2C6]">
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/25 bg-gradient-to-b from-[#283242] to-[#131822] text-[#00D2C6] shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] group-hover:shadow-[0_0_20px_rgba(0,210,198,0.25)] transition">
                 <feat.icon className="h-5 w-5" />
               </div>
               <h3 className="font-[family-name:var(--font-montserrat)] text-base font-bold text-white">
                 {feat.title}
               </h3>
-              <p className="text-xs sm:text-sm text-[#8B98AB] leading-relaxed">
+              <p className="text-xs sm:text-sm text-[#94A3B8] leading-relaxed">
                 {feat.desc}
               </p>
             </div>
@@ -558,31 +565,31 @@ export default function ClinTechBillsLandingPage() {
       {/* Transparent Pricing Section */}
       <section
         id="pricing"
-        className="border-y border-[#1A202B] bg-[#0B0E13] py-20"
+        className="relative border-y border-white/10 bg-gradient-to-b from-[#090B10] via-[#0C0F16] to-[#080A0F] py-20"
       >
         <div className="mx-auto max-w-6xl px-4 sm:px-6 space-y-10">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div className="space-y-2">
-              <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#00D2C6]">
+              <p className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-[#00D2C6]">
                 Transparent ZAR Licensing
               </p>
-              <h2 className="font-[family-name:var(--font-montserrat)] text-2xl sm:text-4xl font-extrabold text-white">
-                Built for Solo ClinTechs &amp; Billing Bureaux.
+              <h2 className="font-[family-name:var(--font-montserrat)] text-2xl sm:text-4xl font-extrabold bg-gradient-to-b from-white via-[#E5ECF5] to-[#94A3B8] bg-clip-text text-transparent">
+                Built for Solo ClinTechs &amp; Medical Bureaus.
               </h2>
-              <p className="text-sm text-[#8B98AB]">
+              <p className="text-sm text-[#94A3B8]">
                 Recovering a single missed 30-minute perfusion or pacemaker unit pays
                 for an entire month. All prices excl. VAT.
               </p>
             </div>
 
-            {/* Audience Switcher */}
-            <div className="inline-flex rounded-2xl border border-[#232B38] bg-[#14181F] p-1.5 self-start">
+            {/* Brushed Steel Audience Switcher */}
+            <div className="inline-flex rounded-2xl border border-white/20 bg-gradient-to-b from-[#1A202C] to-[#0E1219] p-1.5 self-start shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]">
               <button
                 type="button"
                 onClick={() => setAudience('practitioner')}
                 className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition ${
                   audience === 'practitioner'
-                    ? 'bg-[#00D2C6] text-[#08080B]'
+                    ? 'bg-gradient-to-b from-[#45FFF3] via-[#00D2C6] to-[#009EA8] text-[#05070A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
                     : 'text-[#C5D0DF] hover:text-white'
                 }`}
               >
@@ -594,12 +601,12 @@ export default function ClinTechBillsLandingPage() {
                 onClick={() => setAudience('bureau')}
                 className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition ${
                   audience === 'bureau'
-                    ? 'bg-[#00D2C6] text-[#08080B]'
+                    ? 'bg-gradient-to-b from-[#45FFF3] via-[#00D2C6] to-[#009EA8] text-[#05070A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
                     : 'text-[#C5D0DF] hover:text-white'
                 }`}
               >
                 <Building2 className="h-3.5 w-3.5" />
-                <span>Medical Billing Bureaux</span>
+                <span>Medical Bureaus</span>
               </button>
             </div>
           </div>
@@ -607,31 +614,31 @@ export default function ClinTechBillsLandingPage() {
           {audience === 'practitioner' ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Starter */}
-              <div className="rounded-2xl border border-[#232B38] bg-[#14181F] p-6 flex flex-col justify-between space-y-6">
+              <div className="rounded-2xl border border-white/15 bg-gradient-to-b from-[#181E29] via-[#10141D] to-[#0B0E14] p-6 flex flex-col justify-between space-y-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_18px_45px_rgba(0,0,0,0.7)]">
                 <div className="space-y-4">
                   <div>
-                    <span className="font-mono text-xs uppercase text-[#8B98AB]">
+                    <span className="font-mono text-xs uppercase tracking-wider text-[#94A3B8]">
                       Starter
                     </span>
                     <div className="mt-1 flex items-baseline gap-1">
-                      <span className="font-[family-name:var(--font-montserrat)] text-3xl font-extrabold text-white">
+                      <span className="font-[family-name:var(--font-montserrat)] text-3xl font-extrabold bg-gradient-to-b from-white to-[#CBD5E1] bg-clip-text text-transparent">
                         R0
                       </span>
-                      <span className="text-xs text-[#8B98AB]">/ month forever</span>
+                      <span className="text-xs text-[#8E9BAE]">/ month forever</span>
                     </div>
-                    <p className="mt-2 text-xs text-[#8B98AB]">
+                    <p className="mt-2 text-xs text-[#94A3B8]">
                       Ideal for trialling ClinTechBills in live theatre lists.
                     </p>
                   </div>
 
-                  <ul className="space-y-2.5 text-xs text-[#C5D0DF] border-t border-[#232B38] pt-4">
+                  <ul className="space-y-2.5 text-xs text-[#CBD5E1] border-t border-white/10 pt-4">
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
                       <span>Up to 15 cases per calendar month</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
-                      <span>1 Practitioner + 1 Billing Desk seat</span>
+                      <span>1 Practitioner + 1 Medical Bureau desk seat</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
@@ -643,101 +650,103 @@ export default function ClinTechBillsLandingPage() {
                 <button
                   type="button"
                   onClick={() => openAuth('signup', 'client')}
-                  className="w-full rounded-xl border border-[#2C3545] bg-[#0E1218] hover:border-[#00D2C6] py-3 text-xs font-extrabold text-white transition"
+                  className="w-full rounded-xl border border-white/20 bg-gradient-to-b from-[#252E3D] to-[#121620] hover:border-[#00D2C6]/60 py-3 text-xs font-extrabold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] transition"
                 >
                   Create Free Account
                 </button>
               </div>
 
-              {/* Pro Practitioner */}
-              <div className="rounded-2xl border-2 border-[#00D2C6] bg-[#14181F] p-6 flex flex-col justify-between space-y-6 shadow-2xl shadow-[#00D2C6]/10 relative">
-                <span className="absolute -top-3 right-5 rounded-full bg-[#00D2C6] px-3 py-0.5 font-mono text-[10px] font-extrabold uppercase text-[#08080B]">
+              {/* Pro Practitioner — Liquid Chrome Flagship Card */}
+              <div className="relative rounded-2xl p-[1.5px] bg-gradient-to-b from-[#80FFF7] via-[#00D2C6] to-white/30 shadow-[0_24px_60px_rgba(0,210,198,0.2)]">
+                <span className="absolute -top-3 right-5 z-10 rounded-full bg-gradient-to-b from-[#66FFF6] to-[#00B8C4] px-3.5 py-0.5 font-mono text-[10px] font-extrabold uppercase text-[#05070A] shadow-[0_4px_14px_rgba(0,210,198,0.45)]">
                   Most Popular
                 </span>
 
-                <div className="space-y-4">
-                  <div>
-                    <span className="font-mono text-xs uppercase text-[#00D2C6]">
-                      Pro Practitioner
-                    </span>
-                    <div className="mt-1 flex items-baseline gap-1">
-                      <span className="font-[family-name:var(--font-montserrat)] text-3xl font-extrabold text-white">
-                        R495
+                <div className="h-full rounded-[14.5px] bg-gradient-to-b from-[#1E2736] via-[#121822] to-[#0B0E14] p-6 flex flex-col justify-between space-y-6">
+                  <div className="space-y-4">
+                    <div>
+                      <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#00D2C6]">
+                        Pro Practitioner
                       </span>
-                      <span className="text-xs text-[#8B98AB]">/ month</span>
+                      <div className="mt-1 flex items-baseline gap-1">
+                        <span className="font-[family-name:var(--font-montserrat)] text-3xl font-extrabold bg-gradient-to-b from-white via-[#F1F5F9] to-[#94A3B8] bg-clip-text text-transparent">
+                          R495
+                        </span>
+                        <span className="text-xs text-[#94A3B8]">/ month</span>
+                      </div>
+                      <p className="mt-2 text-xs text-[#94A3B8]">
+                        Full theatre-to-bureau automation for active Clinical Technologists.
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs text-[#8B98AB]">
-                      Full theatre-to-bureau automation for active Clinical Technologists.
-                    </p>
+
+                    <ul className="space-y-2.5 text-xs text-[#E2E8F0] border-t border-white/15 pt-4">
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
+                        <span>
+                          <strong className="text-white">Unlimited</strong> monthly cases
+                        </span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
+                        <span>1 Practitioner + 2 Medical Bureau desk seats</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
+                        <span>Discipline 075 coding guardrails &amp; protocol bundles</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
+                        <span>GoodX / Elixir / Healthbridge PMS CSV exports</span>
+                      </li>
+                    </ul>
                   </div>
 
-                  <ul className="space-y-2.5 text-xs text-[#C5D0DF] border-t border-[#232B38] pt-4">
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
-                      <span>
-                        <strong className="text-white">Unlimited</strong> monthly cases
-                      </span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
-                      <span>1 Practitioner + 2 Billing Desk seats</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
-                      <span>Discipline 075 coding guardrails &amp; protocol bundles</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
-                      <span>GoodX / Elixir / Healthbridge PMS CSV exports</span>
-                    </li>
-                  </ul>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCheckoutPlan({
+                        tier: 'PRO_PAID',
+                        label: 'Pro Practitioner',
+                        price: 'R495 / mo',
+                      })
+                    }
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#52FFF4] via-[#00D2C6] to-[#0099A3] py-3 text-xs font-extrabold text-[#05070A] shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_10px_28px_rgba(0,210,198,0.3)] hover:brightness-110 transition"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    <span>Subscribe via PayFast</span>
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCheckoutPlan({
-                      tier: 'PRO_PAID',
-                      label: 'Pro Practitioner',
-                      price: 'R495 / mo',
-                    })
-                  }
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#00D2C6] hover:bg-[#00E5D8] py-3 text-xs font-extrabold text-[#08080B] transition"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  <span>Subscribe via PayFast</span>
-                </button>
               </div>
 
               {/* Practice Group */}
-              <div className="rounded-2xl border border-[#232B38] bg-[#14181F] p-6 flex flex-col justify-between space-y-6">
+              <div className="rounded-2xl border border-white/15 bg-gradient-to-b from-[#181E29] via-[#10141D] to-[#0B0E14] p-6 flex flex-col justify-between space-y-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_18px_45px_rgba(0,0,0,0.7)]">
                 <div className="space-y-4">
                   <div>
-                    <span className="font-mono text-xs uppercase text-indigo-300">
+                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#CBD5E1]">
                       Practice Group
                     </span>
                     <div className="mt-1 flex items-baseline gap-1">
-                      <span className="font-[family-name:var(--font-montserrat)] text-3xl font-extrabold text-white">
+                      <span className="font-[family-name:var(--font-montserrat)] text-3xl font-extrabold bg-gradient-to-b from-white to-[#CBD5E1] bg-clip-text text-transparent">
                         R1,195
                       </span>
-                      <span className="text-xs text-[#8B98AB]">/ month</span>
+                      <span className="text-xs text-[#8E9BAE]">/ month</span>
                     </div>
-                    <p className="mt-2 text-xs text-[#8B98AB]">
+                    <p className="mt-2 text-xs text-[#94A3B8]">
                       Multi-practitioner Clinical Technology partnerships (2–5 clinicians).
                     </p>
                   </div>
 
-                  <ul className="space-y-2.5 text-xs text-[#C5D0DF] border-t border-[#232B38] pt-4">
+                  <ul className="space-y-2.5 text-xs text-[#CBD5E1] border-t border-white/10 pt-4">
                     <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-indigo-300 shrink-0" />
+                      <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
                       <span>Up to 5 Practitioners + 3 Admin seats</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-indigo-300 shrink-0" />
+                      <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
                       <span>Unlimited cases &amp; centralized practice queue</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-indigo-300 shrink-0" />
+                      <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
                       <span>Individual ClinTech attribution badges &amp; CSV splits</span>
                     </li>
                   </ul>
@@ -752,9 +761,9 @@ export default function ClinTechBillsLandingPage() {
                       price: 'R1,195 / mo',
                     })
                   }
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-400/40 bg-indigo-500/15 hover:bg-indigo-500 py-3 text-xs font-extrabold text-indigo-200 hover:text-white transition"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-white/25 bg-gradient-to-b from-[#2A3344] to-[#131822] hover:border-[#00D2C6] py-3 text-xs font-extrabold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition"
                 >
-                  <CreditCard className="h-4 w-4" />
+                  <CreditCard className="h-4 w-4 text-[#00D2C6]" />
                   <span>Subscribe Group</span>
                 </button>
               </div>
@@ -764,108 +773,151 @@ export default function ClinTechBillsLandingPage() {
               {[
                 {
                   tier: 'BUREAU_STARTER',
-                  name: 'Bureau Office Starter',
+                  name: 'Medical Bureau Starter',
                   price: 'R1,950',
-                  desc: 'Dedicated /queue tenant for boutique medical billing companies.',
+                  desc: 'Dedicated /queue tenant for boutique medical bureaus.',
                   features: [
                     'Up to 5 contracted Clinical Technologists',
-                    'Up to 3 Billing Office clerk logins',
-                    'Isolated Bureau Queue with provider filter pills',
+                    'Up to 3 Medical Bureau clerk logins',
+                    'Isolated Medical Bureau Queue with provider filter pills',
                     'GoodX, Elixir Live & Healthbridge PMS CSV export',
                   ],
                 },
                 {
                   tier: 'BUREAU_SCALE',
-                  name: 'Bureau Office Scale',
+                  name: 'Medical Bureau Scale',
                   price: 'R3,450',
                   popular: true,
-                  desc: 'For established bureaux managing high-volume hospital theatre lists.',
+                  desc: 'For established medical bureaus managing high-volume hospital theatre lists.',
                   features: [
                     'Up to 15 contracted Clinical Technologists',
-                    'Up to 10 Billing Office clerk logins',
-                    'Custom bureau header branding on /queue',
+                    'Up to 10 Medical Bureau clerk logins',
+                    'Custom medical bureau header branding on /queue',
                     'Priority WhatsApp & email onboarding support',
                   ],
                 },
                 {
                   tier: 'BUREAU_PAID',
-                  name: 'Bureau Enterprise',
+                  name: 'Medical Bureau Enterprise',
                   price: 'R5,950',
-                  desc: 'Full multi-region bureau capacity with unlimited billing clerks.',
+                  desc: 'Full multi-region medical bureau capacity with unlimited billing clerks.',
                   features: [
                     'Up to 35 contracted Clinical Technologists',
-                    'Unlimited Billing Office clerk logins',
+                    'Unlimited Medical Bureau clerk logins',
                     'Custom PMS CSV column mapping on request',
                     'Dedicated account strategist at MediBurgh',
                   ],
                 },
-              ].map((pkg) => (
-                <div
-                  key={pkg.tier}
-                  className={`rounded-2xl p-6 flex flex-col justify-between space-y-6 bg-[#14181F] ${
-                    pkg.popular
-                      ? 'border-2 border-[#00D2C6] shadow-2xl shadow-[#00D2C6]/10 relative'
-                      : 'border border-[#232B38]'
-                  }`}
-                >
-                  {pkg.popular && (
-                    <span className="absolute -top-3 right-5 rounded-full bg-[#00D2C6] px-3 py-0.5 font-mono text-[10px] font-extrabold uppercase text-[#08080B]">
+              ].map((pkg) =>
+                pkg.popular ? (
+                  <div
+                    key={pkg.tier}
+                    className="relative rounded-2xl p-[1.5px] bg-gradient-to-b from-[#80FFF7] via-[#00D2C6] to-white/30 shadow-[0_24px_60px_rgba(0,210,198,0.2)]"
+                  >
+                    <span className="absolute -top-3 right-5 z-10 rounded-full bg-gradient-to-b from-[#66FFF6] to-[#00B8C4] px-3.5 py-0.5 font-mono text-[10px] font-extrabold uppercase text-[#05070A] shadow-[0_4px_14px_rgba(0,210,198,0.45)]">
                       Best Value
                     </span>
-                  )}
-                  <div className="space-y-4">
-                    <div>
-                      <span className="font-mono text-xs uppercase text-[#00D2C6]">
-                        {pkg.name}
-                      </span>
-                      <div className="mt-1 flex items-baseline gap-1">
-                        <span className="font-[family-name:var(--font-montserrat)] text-3xl font-extrabold text-white">
-                          {pkg.price}
-                        </span>
-                        <span className="text-xs text-[#8B98AB]">/ month</span>
+
+                    <div className="h-full rounded-[14.5px] bg-gradient-to-b from-[#1E2736] via-[#121822] to-[#0B0E14] p-6 flex flex-col justify-between space-y-6">
+                      <div className="space-y-4">
+                        <div>
+                          <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#00D2C6]">
+                            {pkg.name}
+                          </span>
+                          <div className="mt-1 flex items-baseline gap-1">
+                            <span className="font-[family-name:var(--font-montserrat)] text-3xl font-extrabold bg-gradient-to-b from-white via-[#F1F5F9] to-[#94A3B8] bg-clip-text text-transparent">
+                              {pkg.price}
+                            </span>
+                            <span className="text-xs text-[#94A3B8]">/ month</span>
+                          </div>
+                          <p className="mt-2 text-xs text-[#94A3B8]">{pkg.desc}</p>
+                        </div>
+
+                        <ul className="space-y-2.5 text-xs text-[#E2E8F0] border-t border-white/15 pt-4">
+                          {pkg.features.map((f) => (
+                            <li key={f} className="flex items-center gap-2">
+                              <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
+                              <span>{f}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <p className="mt-2 text-xs text-[#8B98AB]">{pkg.desc}</p>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCheckoutPlan({
+                            tier: pkg.tier,
+                            label: pkg.name,
+                            price: `${pkg.price} / mo`,
+                          })
+                        }
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#52FFF4] via-[#00D2C6] to-[#0099A3] py-3 text-xs font-extrabold text-[#05070A] shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_10px_28px_rgba(0,210,198,0.3)] hover:brightness-110 transition"
+                      >
+                        <CreditCard className="h-4 w-4" />
+                        <span>License Medical Bureau</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    key={pkg.tier}
+                    className="rounded-2xl border border-white/15 bg-gradient-to-b from-[#181E29] via-[#10141D] to-[#0B0E14] p-6 flex flex-col justify-between space-y-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_18px_45px_rgba(0,0,0,0.7)]"
+                  >
+                    <div className="space-y-4">
+                      <div>
+                        <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#CBD5E1]">
+                          {pkg.name}
+                        </span>
+                        <div className="mt-1 flex items-baseline gap-1">
+                          <span className="font-[family-name:var(--font-montserrat)] text-3xl font-extrabold bg-gradient-to-b from-white to-[#CBD5E1] bg-clip-text text-transparent">
+                            {pkg.price}
+                          </span>
+                          <span className="text-xs text-[#8E9BAE]">/ month</span>
+                        </div>
+                        <p className="mt-2 text-xs text-[#94A3B8]">{pkg.desc}</p>
+                      </div>
+
+                      <ul className="space-y-2.5 text-xs text-[#CBD5E1] border-t border-white/10 pt-4">
+                        {pkg.features.map((f) => (
+                          <li key={f} className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
 
-                    <ul className="space-y-2.5 text-xs text-[#C5D0DF] border-t border-[#232B38] pt-4">
-                      {pkg.features.map((f) => (
-                        <li key={f} className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-[#00D2C6] shrink-0" />
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCheckoutPlan({
+                          tier: pkg.tier,
+                          label: pkg.name,
+                          price: `${pkg.price} / mo`,
+                        })
+                      }
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-white/25 bg-gradient-to-b from-[#2A3344] to-[#131822] hover:border-[#00D2C6] py-3 text-xs font-extrabold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition"
+                    >
+                      <CreditCard className="h-4 w-4 text-[#00D2C6]" />
+                      <span>License Medical Bureau</span>
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCheckoutPlan({
-                        tier: pkg.tier,
-                        label: pkg.name,
-                        price: `${pkg.price} / mo`,
-                      })
-                    }
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#00D2C6] hover:bg-[#00E5D8] py-3 text-xs font-extrabold text-[#08080B] transition"
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    <span>License Bureau Office</span>
-                  </button>
-                </div>
-              ))}
+                )
+              )}
             </div>
           )}
 
-          {/* MediBurgh Full-Service Outsourced Billing Callout */}
-          <div className="rounded-2xl border border-[#00D2C6]/35 bg-gradient-to-r from-[#0E171D] to-[#14181F] p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* MediBurgh Full-Service Medical Bureau Callout */}
+          <div className="rounded-2xl border border-white/20 bg-gradient-to-r from-[#17222D] via-[#131923] to-[#0D1118] p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_16px_40px_rgba(0,0,0,0.65)]">
             <div className="space-y-1">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#00D2C6]">
-                MediBurgh Full-Service Bureau Advantage
+              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#00D2C6]">
+                MediBurgh Full-Service Medical Bureau Advantage
               </span>
               <h3 className="font-[family-name:var(--font-montserrat)] text-base sm:text-lg font-bold text-white">
                 Outsource your Discipline 075 billing to MediBurgh — get ClinTechBills Pro at R0/mo.
               </h3>
-              <p className="text-xs text-[#8B98AB]">
+              <p className="text-xs text-[#94A3B8]">
                 Practices partnered with MediBurgh for end-to-end medical aid submissions,
                 PMB escalations, and debt recovery receive complimentary unlimited seats.
               </p>
@@ -874,10 +926,10 @@ export default function ClinTechBillsLandingPage() {
               href="https://mediburgh.co.za"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl border border-[#00D2C6] px-5 py-3 text-xs font-extrabold text-[#00D2C6] hover:bg-[#00D2C6] hover:text-[#08080B] transition shrink-0"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-gradient-to-b from-[#293446] to-[#131923] px-5 py-3 text-xs font-extrabold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] hover:border-[#00D2C6] hover:text-[#67FFF5] transition shrink-0"
             >
               <span>Explore MediBurgh</span>
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4 text-[#00D2C6]" />
             </a>
           </div>
         </div>
@@ -885,34 +937,34 @@ export default function ClinTechBillsLandingPage() {
 
       {/* POPIA & Governance Section */}
       <section id="popia" className="mx-auto max-w-6xl px-4 sm:px-6 py-16">
-        <div className="rounded-3xl border border-[#232B38] bg-[#14181F] p-6 sm:p-10 grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+        <div className="rounded-3xl border border-white/15 bg-gradient-to-b from-[#19202C] via-[#11151E] to-[#0B0E14] p-6 sm:p-10 grid grid-cols-1 md:grid-cols-3 gap-8 items-center shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_20px_50px_rgba(0,0,0,0.75)]">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 text-[#00D2C6] font-mono text-xs font-bold uppercase">
+            <div className="inline-flex items-center gap-2 text-[#00D2C6] font-mono text-xs font-bold uppercase tracking-wider">
               <ShieldCheck className="h-4 w-4" />
               <span>POPIA &amp; Clinical Governance</span>
             </div>
-            <h3 className="font-[family-name:var(--font-montserrat)] text-xl font-extrabold text-white">
+            <h3 className="font-[family-name:var(--font-montserrat)] text-xl font-extrabold bg-gradient-to-b from-white to-[#CBD5E1] bg-clip-text text-transparent">
               Built for South African Healthcare Compliance.
             </h3>
           </div>
 
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-[#C5D0DF]">
-            <div className="rounded-2xl border border-[#232B38] bg-[#0E1218] p-4 space-y-1">
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-[#CBD5E1]">
+            <div className="rounded-2xl border border-white/15 bg-gradient-to-b from-[#141923] to-[#0B0E14] p-4 space-y-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
               <p className="font-bold text-white flex items-center gap-1.5">
                 <Lock className="h-3.5 w-3.5 text-[#00D2C6]" />
                 Private Signed Sticker Vault
               </p>
-              <p className="text-[#8B98AB]">
-                Hospital stickers never sit in public buckets—only authorized bureau
-                clerks generate time-limited signed URLs.
+              <p className="text-[#94A3B8]">
+                Hospital stickers never sit in public buckets—only authorized medical
+                bureau clerks generate time-limited signed URLs.
               </p>
             </div>
-            <div className="rounded-2xl border border-[#232B38] bg-[#0E1218] p-4 space-y-1">
+            <div className="rounded-2xl border border-white/15 bg-gradient-to-b from-[#141923] to-[#0B0E14] p-4 space-y-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
               <p className="font-bold text-white flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-[#00D2C6]" />
                 Immutable Audit Trail
               </p>
-              <p className="text-[#8B98AB]">
+              <p className="text-[#94A3B8]">
                 Every submission, query, sticker replacement, and PMS billing reference
                 is logged with timestamp and actor ID.
               </p>
@@ -922,7 +974,7 @@ export default function ClinTechBillsLandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-[#1A202B] bg-[#060709] py-10">
+      <footer className="border-t border-white/10 bg-[#050609] py-10">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -931,12 +983,12 @@ export default function ClinTechBillsLandingPage() {
               alt="MediBurgh"
               className="h-7 w-auto object-contain"
             />
-            <span className="text-xs text-[#8B98AB]">
+            <span className="text-xs font-medium text-[#94A3B8]">
               Precision Billing. Protected Revenue.
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-xs text-[#8B98AB]">
+          <div className="flex flex-wrap items-center gap-4 text-xs text-[#94A3B8]">
             <a
               href="mailto:support@mediburgh.co.za"
               className="hover:text-[#00D2C6] transition"
@@ -976,9 +1028,9 @@ export default function ClinTechBillsLandingPage() {
 
       {/* MODAL 1: Sign In / Create Account */}
       {authModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-[#2C3545] bg-[#14181F] p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-[#232B38] pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-gradient-to-b from-[#1B222E] via-[#11161F] to-[#0B0E14] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_25px_60px_rgba(0,0,0,0.9)] space-y-5 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
                 <UserCheck className="h-4 w-4 text-[#00D2C6]" />
                 <h3 className="font-[family-name:var(--font-montserrat)] text-sm font-bold text-white">
@@ -990,14 +1042,13 @@ export default function ClinTechBillsLandingPage() {
               <button
                 type="button"
                 onClick={() => setAuthModalOpen(false)}
-                className="rounded-lg p-1 text-[#8B98AB] hover:bg-[#1B212B] hover:text-white"
+                className="rounded-lg p-1 text-[#94A3B8] hover:bg-white/10 hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Mode Switcher */}
-            <div className="grid grid-cols-2 rounded-xl border border-[#232B38] bg-[#0E1218] p-1">
+            <div className="grid grid-cols-2 rounded-xl border border-white/15 bg-[#0A0D13] p-1">
               <button
                 type="button"
                 onClick={() => {
@@ -1006,8 +1057,8 @@ export default function ClinTechBillsLandingPage() {
                 }}
                 className={`rounded-lg py-2 text-xs font-bold transition ${
                   authMode === 'signin'
-                    ? 'bg-[#00D2C6] text-[#08080B]'
-                    : 'text-[#8B98AB] hover:text-white'
+                    ? 'bg-gradient-to-b from-[#45FFF3] to-[#00B8C4] text-[#05070A]'
+                    : 'text-[#94A3B8] hover:text-white'
                 }`}
               >
                 Sign In
@@ -1020,8 +1071,8 @@ export default function ClinTechBillsLandingPage() {
                 }}
                 className={`rounded-lg py-2 text-xs font-bold transition ${
                   authMode === 'signup'
-                    ? 'bg-[#00D2C6] text-[#08080B]'
-                    : 'text-[#8B98AB] hover:text-white'
+                    ? 'bg-gradient-to-b from-[#45FFF3] to-[#00B8C4] text-[#05070A]'
+                    : 'text-[#94A3B8] hover:text-white'
                 }`}
               >
                 Create Account
@@ -1032,7 +1083,7 @@ export default function ClinTechBillsLandingPage() {
               {authMode === 'signup' && (
                 <>
                   <div>
-                    <label className="block font-mono text-[10px] uppercase tracking-wider text-[#8B98AB] mb-1">
+                    <label className="block font-mono text-[10px] uppercase tracking-wider text-[#94A3B8] mb-1">
                       Account Type
                     </label>
                     <div className="grid grid-cols-2 gap-2">
@@ -1042,7 +1093,7 @@ export default function ClinTechBillsLandingPage() {
                         className={`rounded-xl border p-2.5 text-left text-xs transition ${
                           role === 'client'
                             ? 'border-[#00D2C6] bg-[#00D2C6]/15 text-white'
-                            : 'border-[#232B38] bg-[#0E1218] text-[#8B98AB]'
+                            : 'border-white/15 bg-[#0A0D13] text-[#94A3B8]'
                         }`}
                       >
                         <p className="font-bold">ClinTech (075)</p>
@@ -1054,17 +1105,17 @@ export default function ClinTechBillsLandingPage() {
                         className={`rounded-xl border p-2.5 text-left text-xs transition ${
                           role === 'office'
                             ? 'border-[#00D2C6] bg-[#00D2C6]/15 text-white'
-                            : 'border-[#232B38] bg-[#0E1218] text-[#8B98AB]'
+                            : 'border-white/15 bg-[#0A0D13] text-[#94A3B8]'
                         }`}
                       >
-                        <p className="font-bold">Billing Bureau</p>
+                        <p className="font-bold">Medical Bureau</p>
                         <p className="text-[10px] opacity-80">Office Queue</p>
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase tracking-wider text-[#8B98AB] mb-1">
+                    <label className="block font-mono text-[10px] uppercase tracking-wider text-[#94A3B8] mb-1">
                       Full Name *
                     </label>
                     <input
@@ -1073,13 +1124,13 @@ export default function ClinTechBillsLandingPage() {
                       placeholder="e.g. Johan van der Merwe"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                      className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase tracking-wider text-[#8B98AB] mb-1">
-                      {role === 'client' ? 'Practice Name *' : 'Billing Bureau Name *'}
+                    <label className="block font-mono text-[10px] uppercase tracking-wider text-[#94A3B8] mb-1">
+                      {role === 'client' ? 'Practice Name *' : 'Medical Bureau Name *'}
                     </label>
                     <input
                       type="text"
@@ -1087,17 +1138,17 @@ export default function ClinTechBillsLandingPage() {
                       placeholder={
                         role === 'client'
                           ? 'e.g. Gauteng Perfusion Services'
-                          : 'e.g. Apex Medical Billing'
+                          : 'e.g. Apex Medical Bureau'
                       }
                       value={practiceName}
                       onChange={(e) => setPracticeName(e.target.value)}
-                      className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                      className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                     />
                   </div>
 
                   {role === 'client' && (
                     <div>
-                      <label className="block font-mono text-[10px] uppercase tracking-wider text-[#8B98AB] mb-1">
+                      <label className="block font-mono text-[10px] uppercase tracking-wider text-[#94A3B8] mb-1">
                         BHF Practice Number (075)
                       </label>
                       <input
@@ -1105,28 +1156,28 @@ export default function ClinTechBillsLandingPage() {
                         placeholder="e.g. 0751234"
                         value={practiceNumber}
                         onChange={(e) => setPracticeNumber(e.target.value)}
-                        className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 font-mono text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                        className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 font-mono text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                       />
                     </div>
                   )}
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase tracking-wider text-[#8B98AB] mb-1">
-                      Licence / Bureau Invite Key (Optional)
+                    <label className="block font-mono text-[10px] uppercase tracking-wider text-[#94A3B8] mb-1">
+                      Licence / Medical Bureau Key (Optional)
                     </label>
                     <input
                       type="text"
                       placeholder="MB-CTB-XXXX-XXXX"
                       value={inviteKey}
                       onChange={(e) => setInviteKey(e.target.value.toUpperCase())}
-                      className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 font-mono text-xs uppercase text-[#00D2C6] placeholder-[#4E5B6E] focus:border-[#00D2C6] focus:outline-none"
+                      className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 font-mono text-xs uppercase text-[#00D2C6] placeholder-[#4E5B6E] focus:border-[#00D2C6] focus:outline-none"
                     />
                   </div>
                 </>
               )}
 
               <div>
-                <label className="block font-mono text-[10px] uppercase tracking-wider text-[#8B98AB] mb-1">
+                <label className="block font-mono text-[10px] uppercase tracking-wider text-[#94A3B8] mb-1">
                   Email Address *
                 </label>
                 <input
@@ -1135,12 +1186,12 @@ export default function ClinTechBillsLandingPage() {
                   placeholder="name@practice.co.za"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                  className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block font-mono text-[10px] uppercase tracking-wider text-[#8B98AB] mb-1">
+                <label className="block font-mono text-[10px] uppercase tracking-wider text-[#94A3B8] mb-1">
                   Password *
                 </label>
                 <input
@@ -1150,7 +1201,7 @@ export default function ClinTechBillsLandingPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                  className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                 />
               </div>
 
@@ -1170,14 +1221,14 @@ export default function ClinTechBillsLandingPage() {
                 <button
                   type="button"
                   onClick={() => setAuthModalOpen(false)}
-                  className="rounded-xl border border-[#2C3545] px-4 py-2.5 text-xs font-semibold text-[#C5D0DF] hover:text-white"
+                  className="rounded-xl border border-white/20 px-4 py-2.5 text-xs font-semibold text-[#CBD5E1] hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={authSubmitting}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#00D2C6] px-5 py-2.5 text-xs font-extrabold text-[#08080B] hover:bg-[#00E5D8] disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#45FFF3] to-[#00B8C4] px-5 py-2.5 text-xs font-extrabold text-[#05070A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] hover:brightness-110 disabled:opacity-50"
                 >
                   {authSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   <span>
@@ -1192,9 +1243,9 @@ export default function ClinTechBillsLandingPage() {
 
       {/* MODAL 2: Request 30-Day VIP / Trial Key */}
       {trialModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-[#2C3545] bg-[#14181F] p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#232B38] pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-gradient-to-b from-[#1B222E] via-[#11161F] to-[#0B0E14] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_25px_60px_rgba(0,0,0,0.9)] space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
                 <KeyRound className="h-4 w-4 text-[#00D2C6]" />
                 <h3 className="font-[family-name:var(--font-montserrat)] text-sm font-bold text-white">
@@ -1204,7 +1255,7 @@ export default function ClinTechBillsLandingPage() {
               <button
                 type="button"
                 onClick={() => setTrialModalOpen(false)}
-                className="rounded-lg p-1 text-[#8B98AB] hover:bg-[#1B212B] hover:text-white"
+                className="rounded-lg p-1 text-[#94A3B8] hover:bg-white/10 hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1218,13 +1269,13 @@ export default function ClinTechBillsLandingPage() {
                 }}
                 className="space-y-3"
               >
-                <p className="text-xs text-[#8B98AB]">
-                  Test unlimited Discipline 075 theatre captures or a full Bureau
-                  Office queue free for 30 days—no card required.
+                <p className="text-xs text-[#94A3B8]">
+                  Test unlimited Discipline 075 theatre captures or a full Medical
+                  Bureau queue free for 30 days—no card required.
                 </p>
 
                 <div>
-                  <label className="block font-mono text-[10px] uppercase text-[#8B98AB] mb-1">
+                  <label className="block font-mono text-[10px] uppercase text-[#94A3B8] mb-1">
                     Your Name *
                   </label>
                   <input
@@ -1233,13 +1284,13 @@ export default function ClinTechBillsLandingPage() {
                     value={trialName}
                     onChange={(e) => setTrialName(e.target.value)}
                     placeholder="e.g. Dr. S. Govender"
-                    className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                    className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-mono text-[10px] uppercase text-[#8B98AB] mb-1">
-                    Practice or Billing Bureau Name *
+                  <label className="block font-mono text-[10px] uppercase text-[#94A3B8] mb-1">
+                    Practice or Medical Bureau Name *
                   </label>
                   <input
                     type="text"
@@ -1247,13 +1298,13 @@ export default function ClinTechBillsLandingPage() {
                     value={trialPractice}
                     onChange={(e) => setTrialPractice(e.target.value)}
                     placeholder="e.g. Highveld Clinical Tech"
-                    className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                    className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#8B98AB] mb-1">
+                    <label className="block font-mono text-[10px] uppercase text-[#94A3B8] mb-1">
                       Role
                     </label>
                     <select
@@ -1262,28 +1313,28 @@ export default function ClinTechBillsLandingPage() {
                         setTrialRole(
                           e.target.value as
                             | 'Clinical Technologist (075)'
-                            | 'Medical Billing Bureau'
+                            | 'Medical Bureau'
                         )
                       }
-                      className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-2.5 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                      className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-2.5 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                     >
                       <option value="Clinical Technologist (075)">
                         ClinTech (075)
                       </option>
-                      <option value="Medical Billing Bureau">
-                        Billing Bureau
+                      <option value="Medical Bureau">
+                        Medical Bureau
                       </option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#8B98AB] mb-1">
+                    <label className="block font-mono text-[10px] uppercase text-[#94A3B8] mb-1">
                       Monthly Volume
                     </label>
                     <select
                       value={trialMonthlyCases}
                       onChange={(e) => setTrialMonthlyCases(e.target.value)}
-                      className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-2.5 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                      className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-2.5 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                     >
                       <option value="15–30 cases/mo">15–30 cases/mo</option>
                       <option value="30–80 cases/mo">30–80 cases/mo</option>
@@ -1293,7 +1344,7 @@ export default function ClinTechBillsLandingPage() {
                 </div>
 
                 <div>
-                  <label className="block font-mono text-[10px] uppercase text-[#8B98AB] mb-1">
+                  <label className="block font-mono text-[10px] uppercase text-[#94A3B8] mb-1">
                     Email for Licence Key Delivery *
                   </label>
                   <input
@@ -1302,7 +1353,7 @@ export default function ClinTechBillsLandingPage() {
                     value={trialEmail}
                     onChange={(e) => setTrialEmail(e.target.value)}
                     placeholder="doctor@practice.co.za"
-                    className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                    className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                   />
                 </div>
 
@@ -1310,13 +1361,13 @@ export default function ClinTechBillsLandingPage() {
                   <button
                     type="button"
                     onClick={() => setTrialModalOpen(false)}
-                    className="rounded-xl border border-[#2C3545] px-4 py-2 text-xs font-semibold text-[#C5D0DF]"
+                    className="rounded-xl border border-white/20 px-4 py-2 text-xs font-semibold text-[#CBD5E1]"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="rounded-xl bg-[#00D2C6] px-4 py-2 text-xs font-extrabold text-[#08080B] hover:bg-[#00E5D8]"
+                    className="rounded-xl bg-gradient-to-b from-[#45FFF3] to-[#00B8C4] px-4 py-2 text-xs font-extrabold text-[#05070A]"
                   >
                     Generate Request
                   </button>
@@ -1333,7 +1384,7 @@ export default function ClinTechBillsLandingPage() {
                 <div className="flex flex-col gap-2">
                   <a
                     href={buildTrialMailtoHref()}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#00D2C6] py-3 text-xs font-extrabold text-[#08080B] hover:bg-[#00E5D8]"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#45FFF3] to-[#00B8C4] py-3 text-xs font-extrabold text-[#05070A]"
                   >
                     <Mail className="h-4 w-4" />
                     <span>Send Request to support@mediburgh.co.za</span>
@@ -1341,7 +1392,7 @@ export default function ClinTechBillsLandingPage() {
                   <button
                     type="button"
                     onClick={() => setTrialModalOpen(false)}
-                    className="w-full rounded-xl border border-[#2C3545] py-2.5 text-xs font-semibold text-[#C5D0DF]"
+                    className="w-full rounded-xl border border-white/20 py-2.5 text-xs font-semibold text-[#CBD5E1]"
                   >
                     Done
                   </button>
@@ -1354,9 +1405,9 @@ export default function ClinTechBillsLandingPage() {
 
       {/* MODAL 3: Direct PayFast Checkout for Selected Tier */}
       {checkoutPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-[#2C3545] bg-[#14181F] p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#232B38] pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-gradient-to-b from-[#1B222E] via-[#11161F] to-[#0B0E14] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_25px_60px_rgba(0,0,0,0.9)] space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
                 <span className="font-mono text-[10px] uppercase text-[#00D2C6]">
                   PayFast ZAR Subscription
@@ -1368,7 +1419,7 @@ export default function ClinTechBillsLandingPage() {
               <button
                 type="button"
                 onClick={() => setCheckoutPlan(null)}
-                className="rounded-lg p-1 text-[#8B98AB] hover:bg-[#1B212B] hover:text-white"
+                className="rounded-lg p-1 text-[#94A3B8] hover:bg-white/10 hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1376,21 +1427,21 @@ export default function ClinTechBillsLandingPage() {
 
             <form onSubmit={handleDirectCheckout} className="space-y-3">
               <div>
-                <label className="block font-mono text-[10px] uppercase text-[#8B98AB] mb-1">
-                  Practice or Billing Bureau Name *
+                <label className="block font-mono text-[10px] uppercase text-[#94A3B8] mb-1">
+                  Practice or Medical Bureau Name *
                 </label>
                 <input
                   type="text"
                   required
                   value={checkoutPractice}
                   onChange={(e) => setCheckoutPractice(e.target.value)}
-                  placeholder="e.g. Gauteng Perfusion / Apex Bureau"
-                  className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                  placeholder="e.g. Gauteng Perfusion / Apex Medical Bureau"
+                  className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block font-mono text-[10px] uppercase text-[#8B98AB] mb-1">
+                <label className="block font-mono text-[10px] uppercase text-[#94A3B8] mb-1">
                   Email for Instant Key Delivery *
                 </label>
                 <input
@@ -1399,11 +1450,11 @@ export default function ClinTechBillsLandingPage() {
                   value={checkoutEmail}
                   onChange={(e) => setCheckoutEmail(e.target.value)}
                   placeholder="doctor@practice.co.za"
-                  className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
+                  className="w-full h-10 rounded-xl border border-white/15 bg-[#0A0D13] px-3 text-xs text-white focus:border-[#00D2C6] focus:outline-none"
                 />
               </div>
 
-              <p className="text-[11px] text-[#8B98AB]">
+              <p className="text-[11px] text-[#94A3B8]">
                 Your <code>MB-CTB-XXXX-XXXX</code> licence key activates immediately
                 and is emailed to you upon PayFast payment confirmation.
               </p>
@@ -1412,14 +1463,14 @@ export default function ClinTechBillsLandingPage() {
                 <button
                   type="button"
                   onClick={() => setCheckoutPlan(null)}
-                  className="rounded-xl border border-[#2C3545] px-4 py-2.5 text-xs font-semibold text-[#C5D0DF]"
+                  className="rounded-xl border border-white/20 px-4 py-2.5 text-xs font-semibold text-[#CBD5E1]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={checkoutLoading}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#00D2C6] px-5 py-2.5 text-xs font-extrabold text-[#08080B] hover:bg-[#00E5D8] disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#45FFF3] to-[#00B8C4] px-5 py-2.5 text-xs font-extrabold text-[#05070A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] hover:brightness-110 disabled:opacity-50"
                 >
                   <CreditCard className="h-3.5 w-3.5" />
                   <span>
