@@ -706,6 +706,7 @@ export default function PractitionerCapturePage() {
         .from('cases')
         .insert({
           client_id: userId,
+        bureau_license_id: entitlement.bureauLicenseId,
           license_id: entitlement.license?.id ?? null,
           patient_first_name: patientFirstName.trim(),
           patient_surname: patientSurname.trim(),

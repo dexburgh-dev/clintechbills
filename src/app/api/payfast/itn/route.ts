@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateLicenseKey } from '@/lib/licensing';
@@ -13,10 +14,55 @@ const SEAT_ALLOWANCES: Record<string, number> = {
 const PLAN_LABELS: Record<string, string> = {
   PRO_PAID: 'Pro Practitioner (R495/mo)',
   GROUP_PAID: 'Practice Group (R1,195/mo)',
-  BUREAU_STARTER: 'Bureau Office Starter (R1,950/mo)',
-  BUREAU_SCALE: 'Bureau Office Scale (R3,450/mo)',
-  BUREAU_PAID: 'Bureau Office Enterprise (R5,950/mo)',
+  BUREAU_STARTER: 'Medical Bureau Starter (R1,950/mo)',
+  BUREAU_SCALE: 'Medical Bureau Scale (R3,450/mo)',
+  BUREAU_PAID: 'Medical Bureau Enterprise (R5,950/mo)',
 };
+
+function pfUrlEncode(val: string): string {
+  return encodeURIComponent(val.trim()).replace(/%20/g, '+');
+}
+
+function verifyPayFastSignature(
+  entries: Array<[string, string]>,
+  receivedSignature: string,
+  passphrase: string
+): boolean {
+  const paramPairs: string[] = [];
+  for (const [key, value] of entries) {
+    if (key === 'signature') continue;
+    if (value !== '') {
+      paramPairs.push(`${key}=${pfUrlEncode(value)}`);
+    }
+  }
+  if (passphrase) {
+    paramPairs.push(`passphrase=${pfUrlEncode(passphrase)}`);
+  }
+  const paramString = paramPairs.join('&');
+  const expected = crypto.createHash('md5').update(paramString).digest('hex');
+  return expected.toLowerCase() === receivedSignature.toLowerCase();
+}
+
+async function confirmWithPayFastServer(
+  entries: Array<[string, string]>,
+  isSandbox: boolean
+): Promise<boolean> {
+  const host = isSandbox ? 'https://sandbox.payfast.co.za' : 'https://www.payfast.co.za';
+  const bodyPairs: string[] = [];
+  for (const [key, value] of entries) {
+    if (key === 'signature') continue;
+    if (value !== '') {
+      bodyPairs.push(`${key}=${pfUrlEncode(value)}`);
+    }
+  }
+  const res = await fetch(`${host}/eng/query/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: bodyPairs.join('&'),
+  });
+  const text = await res.text();
+  return text.trim() === 'VALID';
+}
 
 async function sendWelcomeEmail(params: {
   to: string;
@@ -50,13 +96,11 @@ async function sendWelcomeEmail(params: {
                 </h1>
               </td>
             </tr>
-
             <tr>
               <td style="padding:28px 32px;font-size:14px;line-height:1.6;color:#C5D0DF;">
                 <p style="margin-top:0;">
                   Your subscription to <strong style="color:#FFFFFF;">${planName}</strong> is active. Your theatre-to-bureau capture and Discipline 075 billing workspace is ready.
                 </p>
-
                 <div style="margin:24px 0;padding:18px 20px;background-color:#0E1218;border:1px solid #00D2C6;border-radius:12px;">
                   <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#8B98AB;">
                     Your Active Licence Key
@@ -65,44 +109,30 @@ async function sendWelcomeEmail(params: {
                     ${params.licenseKey}
                   </p>
                 </div>
-
-                <h3 style="margin:24px 0 10px 0;font-size:14px;text-transform:uppercase;letter-spacing:1px;color:#FFFFFF;">
-                  Quick-Start Activation (60 Seconds)
-                </h3>
                 <ol style="margin:0;padding-left:20px;color:#C5D0DF;">
                   <li style="margin-bottom:8px;">Open <a href="${launchUrl}" style="color:#00D2C6;text-decoration:none;font-weight:600;">${launchUrl}</a> and sign in with your account.</li>
                   <li style="margin-bottom:8px;">Tap <strong>${isBureau ? 'Bureau Licence' : 'Upgrade / Key'}</strong> at the top of your screen and paste <code style="color:#00D2C6;">${params.licenseKey}</code>.</li>
                   <li style="margin-bottom:8px;">${
                     isBureau
-                      ? 'Share this key with your contracted Clinical Technologists so their cases route directly into your Bureau Queue.'
+                      ? 'Share this key with your contracted Clinical Technologists so their cases route directly into your Medical Bureau Queue.'
                       : 'Install ClinTechBills to your phone Home Screen (Chrome → Add to Home Screen / Safari → Share → Add to Home Screen).'
                   }</li>
                 </ol>
-
                 <div style="margin:28px 0;">
                   <a href="${launchUrl}" style="display:inline-block;background-color:#00D2C6;color:#08080B;font-weight:800;font-size:13px;text-decoration:none;padding:13px 24px;border-radius:10px;">
                     Launch ClinTechBills Workspace →
                   </a>
                 </div>
-
                 <hr style="border:none;border-top:1px solid #232B38;margin:24px 0;" />
-
-                <p style="margin:0 0 8px 0;font-size:13px;color:#FFFFFF;font-weight:700;">
-                  Need Help Onboarding Your Practice or Billing Desk?
-                </p>
                 <p style="margin:0;font-size:13px;color:#8B98AB;">
-                  Email our support desk anytime at
-                  <a href="mailto:support@mediburgh.co.za" style="color:#00D2C6;text-decoration:none;">support@mediburgh.co.za</a>
-                  or visit <a href="https://mediburgh.co.za" style="color:#00D2C6;text-decoration:none;">mediburgh.co.za</a>.
+                  Support: <a href="mailto:support@mediburgh.co.za" style="color:#00D2C6;text-decoration:none;">support@mediburgh.co.za</a> ·
+                  Web: <a href="https://mediburgh.co.za" style="color:#00D2C6;text-decoration:none;">mediburgh.co.za</a>
                 </p>
               </td>
             </tr>
-
             <tr>
               <td style="padding:20px 32px;background-color:#0E1218;border-top:1px solid #232B38;font-size:12px;color:#8B98AB;">
-                <p style="margin:0 0 8px 0;">
-                  <strong style="color:#FFFFFF;">MediBurgh</strong> · Precision Billing. Protected Revenue.
-                </p>
+                <p style="margin:0 0 8px 0;"><strong style="color:#FFFFFF;">MediBurgh</strong> · Precision Billing. Protected Revenue.</p>
                 <p style="margin:0;">
                   <a href="https://mediburgh.co.za" style="color:#00D2C6;text-decoration:none;">Website</a> &nbsp;·&nbsp;
                   <a href="https://www.linkedin.com/company/mediburgh" style="color:#00D2C6;text-decoration:none;">LinkedIn</a> &nbsp;·&nbsp;
@@ -142,21 +172,39 @@ export async function POST(req: NextRequest) {
       return new NextResponse('Missing SUPABASE_SERVICE_ROLE_KEY', { status: 500 });
     }
 
+    const formData = await req.formData();
+    const entries: Array<[string, string]> = [];
+    formData.forEach((value, key) => {
+      entries.push([key, String(value)]);
+    });
+
+    const receivedSignature = String(formData.get('signature') || '');
+    const passphrase = process.env.PAYFAST_PASSPHRASE || '';
+    const isSandbox = process.env.PAYFAST_SANDBOX === 'true';
+
+    if (!verifyPayFastSignature(entries, receivedSignature, passphrase)) {
+      return new NextResponse('Invalid PayFast Signature', { status: 400 });
+    }
+
+    const serverValid = await confirmWithPayFastServer(entries, isSandbox);
+    if (!serverValid) {
+      return new NextResponse('PayFast Server Validation Failed', { status: 400 });
+    }
+
+    const paymentStatus = String(formData.get('payment_status') || '');
+    if (paymentStatus !== 'COMPLETE') {
+      return new NextResponse('IGNORED', { status: 200 });
+    }
+
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       serviceRoleKey
     );
 
-    const formData = await req.formData();
-    const paymentStatus = String(formData.get('payment_status') || '');
     const planTier = String(formData.get('custom_str1') || 'PRO_PAID');
     const existingKey = String(formData.get('custom_str2') || '').trim().toUpperCase();
     const practiceName = String(formData.get('custom_str3') || 'Subscribed Practice').trim();
     const email = String(formData.get('email_address') || '').trim().toLowerCase();
-
-    if (paymentStatus !== 'COMPLETE') {
-      return new NextResponse('IGNORED', { status: 200 });
-    }
 
     const nextExpiry = new Date(Date.now() + 32 * 24 * 60 * 60 * 1000).toISOString();
     const maxSeats = SEAT_ALLOWANCES[planTier] ?? 1;

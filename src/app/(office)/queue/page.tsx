@@ -112,14 +112,12 @@ export default function BillingOfficeQueuePage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
-  // Auth & Bureau Tenant State
   const [authLoading, setAuthLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>('');
   const [clerkName, setClerkName] = useState<string>('Billing Clerk');
   const [bureauLicense, setBureauLicense] = useState<BureauLicenseRecord | null>(null);
 
-  // Bureau Key Activation & Upgrade Modal
   const [licenseModalOpen, setLicenseModalOpen] = useState(false);
   const [bureauKeyInput, setBureauKeyInput] = useState('');
   const [activatingKey, setActivatingKey] = useState(false);
@@ -129,7 +127,6 @@ export default function BillingOfficeQueuePage() {
   } | null>(null);
   const [checkoutTierLoading, setCheckoutTierLoading] = useState<string | null>(null);
 
-  // Cases & Filters
   const [cases, setCases] = useState<OfficeCaseRecord[]>([]);
   const [casesLoading, setCasesLoading] = useState(true);
   const [casesError, setCasesError] = useState<string | null>(null);
@@ -137,12 +134,10 @@ export default function BillingOfficeQueuePage() {
   const [selectedProviderId, setSelectedProviderId] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Selected Case Inspection Drawer / Panel
   const [activeCase, setActiveCase] = useState<OfficeCaseRecord | null>(null);
   const [stickerSignedUrl, setStickerSignedUrl] = useState<string | null>(null);
   const [stickerLoading, setStickerLoading] = useState(false);
 
-  // Query & Mark Billed Actions
   const [queryInput, setQueryInput] = useState('');
   const [pmsAccountInput, setPmsAccountInput] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -153,7 +148,6 @@ export default function BillingOfficeQueuePage() {
     setTimeout(() => setToastMsg(null), 3200);
   }, []);
 
-  // Fetch Cases Scoped to Active Bureau Tenant
   const fetchBureauCases = useCallback(
     async (bureauId: string | null) => {
       if (!bureauId) {
@@ -199,7 +193,6 @@ export default function BillingOfficeQueuePage() {
     [supabase]
   );
 
-  // Initialize Office Clerk Session & Bureau Tenant
   useEffect(() => {
     let active = true;
 
@@ -268,7 +261,6 @@ export default function BillingOfficeQueuePage() {
     };
   }, [fetchBureauCases, router, supabase]);
 
-  // Realtime Subscription Scoped to This Bureau's Cases
   useEffect(() => {
     if (!bureauLicense?.id) return;
 
@@ -293,7 +285,6 @@ export default function BillingOfficeQueuePage() {
     };
   }, [bureauLicense?.id, fetchBureauCases, supabase]);
 
-  // Load Signed URL for Hospital Sticker When Selecting a Case
   useEffect(() => {
     let active = true;
 
@@ -322,7 +313,6 @@ export default function BillingOfficeQueuePage() {
     };
   }, [activeCase, supabase]);
 
-  // Activate or Switch Bureau Office Licence Key
   async function handleActivateBureauKey(e: React.FormEvent) {
     e.preventDefault();
     if (!userId) return;
@@ -345,7 +335,7 @@ export default function BillingOfficeQueuePage() {
       setActivatingKey(false);
       setLicenseFeedback({
         type: 'err',
-        msg: 'Bureau licence key not found. Verify the MB-CTB key or purchase an Office package below.',
+        msg: 'Medical Bureau licence key not found. Verify the MB-CTB key or subscribe below.',
       });
       return;
     }
@@ -356,7 +346,7 @@ export default function BillingOfficeQueuePage() {
       setActivatingKey(false);
       setLicenseFeedback({
         type: 'err',
-        msg: 'This Bureau licence is suspended. Contact MediBurgh support.',
+        msg: 'This Medical Bureau licence is suspended. Contact support@mediburgh.co.za.',
       });
       return;
     }
@@ -372,7 +362,7 @@ export default function BillingOfficeQueuePage() {
       setActivatingKey(false);
       setLicenseFeedback({
         type: 'err',
-        msg: 'This is a single-practitioner key. Enter a Bureau Office key (BUREAU_STARTER / SCALE / ENTERPRISE) to unlock /queue.',
+        msg: 'This is a single-practitioner key. Enter a Medical Bureau Office key to unlock /queue.',
       });
       return;
     }
@@ -402,7 +392,6 @@ export default function BillingOfficeQueuePage() {
     }, 900);
   }
 
-  // Trigger PayFast Checkout for Billing Bureau Packages
   async function handleStartBureauCheckout(
     planTier: 'BUREAU_STARTER' | 'BUREAU_SCALE' | 'BUREAU_PAID'
   ) {
@@ -414,7 +403,7 @@ export default function BillingOfficeQueuePage() {
         body: JSON.stringify({
           planTier,
           practiceName:
-            bureauLicense?.practice_name || `${clerkName} Billing Bureau`,
+            bureauLicense?.practice_name || `${clerkName} Medical Bureau`,
           contactEmail: userEmail,
           licenseKey: bureauLicense?.license_key || '',
         }),
@@ -430,7 +419,6 @@ export default function BillingOfficeQueuePage() {
     }
   }
 
-  // Unique ClinTech Providers in This Bureau's Queue
   const providerList = useMemo(() => {
     const map = new Map<
       string,
@@ -468,7 +456,6 @@ export default function BillingOfficeQueuePage() {
     return Array.from(map.values()).sort((a, b) => b.openCases - a.openCases);
   }, [cases]);
 
-  // Filtered Cases
   const filteredCases = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
@@ -503,7 +490,6 @@ export default function BillingOfficeQueuePage() {
     });
   }, [cases, searchQuery, selectedProviderId, statusFilter]);
 
-  // Status Counts
   const counts = useMemo(() => {
     return {
       all: cases.length,
@@ -513,7 +499,6 @@ export default function BillingOfficeQueuePage() {
     };
   }, [cases]);
 
-  // Send Query to Practitioner
   async function handleSendQuery() {
     if (!activeCase || !userId) return;
     if (!queryInput.trim()) {
@@ -545,7 +530,6 @@ export default function BillingOfficeQueuePage() {
     setActionLoading(false);
   }
 
-  // Mark Case Billed with PMS Account #
   async function handleMarkBilled() {
     if (!activeCase || !userId) return;
     if (!pmsAccountInput.trim()) {
@@ -580,7 +564,6 @@ export default function BillingOfficeQueuePage() {
     setActionLoading(false);
   }
 
-  // Export PMS CSV Including ClinTech Provider Columns
   function handleExportPmsCsv() {
     if (filteredCases.length === 0) {
       alert('No cases in the current filter view to export.');
@@ -681,7 +664,7 @@ export default function BillingOfficeQueuePage() {
       <div className="min-h-screen bg-[#08080B] flex items-center justify-center">
         <div className="flex items-center gap-3 text-[#00D2C6] font-mono text-sm">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span>LOADING BILLING BUREAU DESK...</span>
+          <span>LOADING MEDICAL BUREAU DESK...</span>
         </div>
       </div>
     );
@@ -689,7 +672,6 @@ export default function BillingOfficeQueuePage() {
 
   return (
     <div className="min-h-screen bg-[#08080B] text-[#F3F6FA] pb-16">
-      {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-xl border border-[#00D2C6]/50 bg-[#0D1117] px-4 py-3 text-xs font-semibold text-[#9FF7F1] shadow-2xl">
           <CheckCircle2 className="h-4 w-4 text-[#00D2C6]" />
@@ -697,7 +679,6 @@ export default function BillingOfficeQueuePage() {
         </div>
       )}
 
-      {/* Top Navigation Header */}
       <header className="sticky top-0 z-30 border-b border-[#232B38] bg-[#08080B]/95 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-3">
@@ -710,14 +691,14 @@ export default function BillingOfficeQueuePage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-[family-name:var(--font-montserrat)] text-sm sm:text-base font-extrabold tracking-wide text-white">
-                  {bureauLicense?.practice_name || 'UNLINKED BILLING DESK'}
+                  {bureauLicense?.practice_name || 'UNLINKED MEDICAL BUREAU'}
                 </span>
                 <span className="hidden sm:inline-flex items-center rounded border border-[#00D2C6]/35 bg-[#00D2C6]/10 px-2 py-0.5 font-mono text-[10px] font-bold text-[#00D2C6]">
                   {bureauLicense ? bureauLicense.plan_tier : 'NO BUREAU KEY'}
                 </span>
               </div>
               <p className="text-[11px] text-[#8B98AB]">
-                Desk Operator: {clerkName} · Discipline 075 Bureau Queue
+                Desk Operator: {clerkName} · Discipline 075 Medical Bureau Queue
               </p>
             </div>
           </div>
@@ -756,18 +737,17 @@ export default function BillingOfficeQueuePage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 pt-6 space-y-6">
-        {/* Unlinked Bureau Warning Banner */}
         {!bureauLicense && (
           <div className="rounded-2xl border border-amber-400/50 bg-amber-500/15 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
               <Building2 className="h-5 w-5 text-amber-300 shrink-0 mt-0.5" />
               <div>
                 <h2 className="text-sm font-bold text-amber-200">
-                  Activate Your Billing Bureau Office Licence
+                  Activate Your Medical Bureau Office Licence
                 </h2>
                 <p className="text-xs text-amber-100/80 mt-0.5">
-                  Connect your Bureau Office Key (`MB-CTB-XXXX-XXXX`) or subscribe to a
-                  Bureau plan to unlock multi-ClinTech queue routing and PMS exports.
+                  Connect your Medical Bureau Key (`MB-CTB-XXXX-XXXX`) or subscribe to a
+                  Medical Bureau plan to unlock multi-ClinTech queue routing and PMS exports.
                 </p>
               </div>
             </div>
@@ -781,7 +761,6 @@ export default function BillingOfficeQueuePage() {
           </div>
         )}
 
-        {/* ClinTech Provider Attribution Filter Strip */}
         <section className="rounded-2xl border border-[#232B38] bg-[#14181F] p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
@@ -843,7 +822,6 @@ export default function BillingOfficeQueuePage() {
           </div>
         </section>
 
-        {/* Status Tabs & Search Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {(
@@ -892,13 +870,11 @@ export default function BillingOfficeQueuePage() {
           </div>
         </div>
 
-        {/* Split Workspace: Case List + Case Inspection & Billing Drawer */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: Cases List */}
           <div className="lg:col-span-7 space-y-3">
             {casesLoading ? (
               <div className="rounded-2xl border border-[#232B38] bg-[#14181F] p-10 text-center text-xs font-mono text-[#8B98AB]">
-                Loading bureau queue...
+                Loading Medical Bureau queue...
               </div>
             ) : casesError ? (
               <div className="rounded-2xl border border-rose-500/40 bg-rose-950/30 p-4 text-xs text-rose-300">
@@ -992,7 +968,6 @@ export default function BillingOfficeQueuePage() {
             )}
           </div>
 
-          {/* Right Column: Active Case Workbench */}
           <div className="lg:col-span-5 lg:sticky lg:top-20">
             {!activeCase ? (
               <div className="rounded-2xl border border-[#232B38] bg-[#14181F] p-8 text-center space-y-2">
@@ -1012,7 +987,6 @@ export default function BillingOfficeQueuePage() {
 
                 return (
                   <div className="rounded-2xl border border-[#2C3545] bg-[#14181F] p-5 space-y-5 shadow-2xl">
-                    {/* Provider Attribution Header */}
                     <div className="rounded-xl border border-[#232B38] bg-[#0E1218] p-3.5 space-y-1">
                       <span className="font-mono text-[10px] uppercase tracking-wider text-[#8B98AB] block">
                         Submitting Clinical Technologist (075)
@@ -1039,7 +1013,6 @@ export default function BillingOfficeQueuePage() {
                       </div>
                     </div>
 
-                    {/* Hospital Sticker Preview */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-[#00D2C6]">
@@ -1079,7 +1052,6 @@ export default function BillingOfficeQueuePage() {
                       )}
                     </div>
 
-                    {/* Case Clinical Summary */}
                     <div className="grid grid-cols-2 gap-2.5 text-xs">
                       <div className="rounded-xl bg-[#0E1218] border border-[#232B38] p-3">
                         <span className="text-[10px] font-mono uppercase text-[#8B98AB] block">
@@ -1126,7 +1098,6 @@ export default function BillingOfficeQueuePage() {
                       </div>
                     </div>
 
-                    {/* Tariffs & Notes */}
                     <div className="space-y-2">
                       <span className="font-mono text-[10px] uppercase tracking-wider text-[#8B98AB] block">
                         Discipline 075 Tariffs
@@ -1163,7 +1134,6 @@ export default function BillingOfficeQueuePage() {
                       )}
                     </div>
 
-                    {/* Action 1: Send Query to ClinTech */}
                     <div className="border-t border-[#232B38] pt-4 space-y-2">
                       <label className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-amber-300">
                         <MessageSquareWarning className="h-3.5 w-3.5" />
@@ -1189,7 +1159,6 @@ export default function BillingOfficeQueuePage() {
                       </div>
                     </div>
 
-                    {/* Action 2: Capture PMS Account # & Mark Billed */}
                     <div className="border-t border-[#232B38] pt-4 space-y-2">
                       <label className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-emerald-300">
                         <Hash className="h-3.5 w-3.5" />
@@ -1224,7 +1193,6 @@ export default function BillingOfficeQueuePage() {
         </div>
       </main>
 
-      {/* Bureau Office Licence Activation & PayFast Purchase Modal */}
       {licenseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-xl rounded-2xl border border-[#2C3545] bg-[#14181F] p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
@@ -1232,7 +1200,7 @@ export default function BillingOfficeQueuePage() {
               <div className="flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-[#00D2C6]" />
                 <h3 className="font-[family-name:var(--font-montserrat)] text-base font-bold text-white">
-                  Billing Bureau Office Licence
+                  Medical Bureau Office Licence
                 </h3>
               </div>
               <button
@@ -1245,10 +1213,9 @@ export default function BillingOfficeQueuePage() {
               </button>
             </div>
 
-            {/* Option A: Enter Issued Bureau Key */}
             <form onSubmit={handleActivateBureauKey} className="space-y-3">
               <label className="block font-mono text-[11px] uppercase tracking-wider text-[#8B98AB]">
-                Already Have a Bureau Key? Enter Below
+                Already Have a Medical Bureau Key? Enter Below
               </label>
               <div className="flex gap-2">
                 <input
@@ -1269,7 +1236,7 @@ export default function BillingOfficeQueuePage() {
               </div>
               {bureauLicense && (
                 <p className="text-[11px] text-[#8B98AB]">
-                  Current Bureau:{' '}
+                  Current Medical Bureau:{' '}
                   <span className="font-bold text-white">
                     {bureauLicense.practice_name}
                   </span>{' '}
@@ -1292,11 +1259,10 @@ export default function BillingOfficeQueuePage() {
               )}
             </form>
 
-            {/* Option B: Purchase a Bureau Office Plan via PayFast */}
             <div className="border-t border-[#232B38] pt-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[11px] uppercase tracking-wider text-[#00D2C6]">
-                  Or Subscribe as a Billing Company (PayFast ZAR)
+                  Or Subscribe as a Medical Bureau (PayFast ZAR)
                 </span>
                 <ShieldCheck className="h-4 w-4 text-[#00D2C6]" />
               </div>
@@ -1351,7 +1317,6 @@ export default function BillingOfficeQueuePage() {
               </div>
             </div>
 
-            {/* Footer Navigation: Back / Switch Account & Cancel */}
             <div className="border-t border-[#232B38] pt-4 flex items-center justify-between gap-3">
               <button
                 type="button"

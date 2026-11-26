@@ -996,6 +996,8 @@ export default function ClinTechBillsLandingPage() {
               support@mediburgh.co.za
             </a>
             <span>·</span>
+            <a href="/legal" className="hover:text-[#00D2C6] transition">POPIA &amp; Terms</a>
+            <span>·</span>
             <a
               href="https://mediburgh.co.za"
               target="_blank"
