@@ -1,183 +1,170 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export interface StickerOcrPayload {
-  patient_first_name: string;
-  patient_surname: string;
-  medical_aid_name: string;
-  medical_aid_number: string;
-  dependent_code: string;
-  patient_cellphone: string;
-  facility_name: string;
-  referring_surgeon: string;
-  confidence: 'high' | 'medium' | 'low';
-}
-
-const STICKER_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'patient_first_name',
-    'patient_surname',
-    'medical_aid_name',
-    'medical_aid_number',
-    'dependent_code',
-    'patient_cellphone',
-    'facility_name',
-    'referring_surgeon',
-    'confidence',
-  ],
-  properties: {
-    patient_first_name: {
-      type: 'string',
-      description: 'Patient first name(s) or initials if full first name is not printed. Empty string if unreadable.',
-    },
-    patient_surname: {
-      type: 'string',
-      description: 'Patient surname / family name. Empty string if unreadable.',
-    },
-    medical_aid_name: {
-      type: 'string',
-      description: 'South African medical scheme name (e.g. Discovery Health, Bonitas, GEMS, Momentum, Medihelp, Bestmed, CompCare, Fedhealth, Polmed). Empty string if private/unreadable.',
-    },
-    medical_aid_number: {
-      type: 'string',
-      description: 'Medical aid membership number only (digits/letters without dependent suffix). Empty string if unreadable.',
-    },
-    dependent_code: {
-      type: 'string',
-      description: 'Two-digit dependent code if shown (e.g. 00, 01, 02). Empty string if not shown.',
-    },
-    patient_cellphone: {
-      type: 'string',
-      description: 'South African mobile number normalized to 10 digits starting with 0 (e.g. 0821234567). Empty string if not shown.',
-    },
-    facility_name: {
-      type: 'string',
-      description: 'Hospital or clinic name printed on the sticker (e.g. Netcare Sunninghill, Life Fourways, Mediclinic Morningside). Empty string if not shown.',
-    },
-    referring_surgeon: {
-      type: 'string',
-      description: 'Treating or admitting doctor/surgeon printed on the sticker (e.g. Dr. K. Naidoo). Empty string if not shown.',
-    },
-    confidence: {
-      type: 'string',
-      enum: ['high', 'medium', 'low'],
-      description: 'Overall print legibility confidence.',
-    },
-  },
-};
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
-    const openAiKey = process.env.OPENAI_API_KEY;
-    if (!openAiKey) {
+    const authHeader = req.headers.get('authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) {
       return NextResponse.json(
-        { error: 'OPENAI_API_KEY is not configured on the server.' },
+        { error: 'Supabase environment variables not configured.' },
         { status: 500 }
       );
     }
 
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized request.' }, { status: 401 });
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Invalid or expired session.' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
     const body = await req.json();
     const imageDataUrl = String(body?.imageDataUrl || '');
-
-    if (!imageDataUrl.startsWith('data:image/') || imageDataUrl.length > 4_500_000) {
+    const match = imageDataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    if (!match) {
       return NextResponse.json(
-        { error: 'Invalid or oversized sticker image payload.' },
+        { error: 'Invalid base64 image payload.' },
         { status: 400 }
       );
     }
 
-    const model = process.env.OPENAI_OCR_MODEL || 'gpt-4o-mini';
+    const mimeType = match[1];
+    const base64Data = match[2];
 
-    const openAiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openAiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0,
-        max_tokens: 350,
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'sa_hospital_sticker',
-            strict: true,
-            schema: STICKER_SCHEMA,
-          },
-        },
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You extract patient billing demographics from South African hospital admission stickers (Netcare, Life Healthcare, Mediclinic, NHN). Never guess missing digits; return an empty string "" for any field not clearly visible.',
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extract the patient demographics, medical scheme details, hospital facility, and admitting doctor from this hospital sticker.',
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageDataUrl,
-                  detail: 'high',
+    const apiKey =
+      process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'GEMINI_API_KEY is not configured on the server.' },
+        { status: 500 }
+      );
+    }
+
+    const prompt = `You are a South African medical billing OCR specialist extracting patient admission sticker data (Netcare, Life Healthcare, Mediclinic, Lenmed, NHN).
+Inspect the hospital patient sticker image carefully and extract ONLY valid JSON matching this exact schema (use empty string "" if unreadable or absent):
+{
+  "patient_first_name": "Patient's first / given names (e.g. Fritz C or Nicolene Allouise)",
+  "patient_surname": "Patient's surname / family name",
+  "main_member_name": "Main medical aid member full name if listed (e.g. Mr FC Relling)",
+  "patient_id_number": "13-digit South African ID number if printed (digits only)",
+  "patient_dob": "Date of birth formatted as YYYY-MM-DD if printed (or derived from SA ID)",
+  "postal_address": "Street/postal address and postal code on single line",
+  "medical_aid_name": "Medical scheme name (e.g. Discovery Health, Bonitas, GEMS, Momentum, Medihelp, Bestmed, Fedhealth)",
+  "medical_aid_option": "Plan / option name if printed (e.g. Classic Saver, Executive, Coastal Core)",
+  "medical_aid_number": "Membership number only (digits/letters, excluding dependant code)",
+  "dependent_code": "2-digit dependant code if present (e.g. 00, 01, 02)",
+  "authorisation_number": "Pre-authorisation / auth number if printed",
+  "patient_cellphone": "Patient or main member mobile/telephone number",
+  "facility_name": "Hospital or clinic name if visible",
+  "referring_surgeon": "Admitting / treating doctor name if visible (e.g. Dr RD Kyte)",
+  "surgeon_practice_no": "Admitting / treating doctor BHF practice number if printed (e.g. 0157996 or 917583)",
+  "confidence": "high" | "medium" | "low"
+}
+Return ONLY raw JSON without markdown fences.`;
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
+        apiKey
+      )}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType,
+                    data: base64Data,
+                  },
                 },
-              },
-            ],
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json',
           },
-        ],
-      }),
-    });
+        }),
+      }
+    );
 
-    if (!openAiRes.ok) {
-      const errText = await openAiRes.text();
-      console.error('OpenAI OCR error:', errText);
+    const geminiJson = await geminiRes.json();
+    if (!geminiRes.ok) {
       return NextResponse.json(
-        { error: 'Sticker OCR service failed to read image.' },
+        {
+          error:
+            geminiJson?.error?.message ||
+            'Gemini Vision OCR request failed.',
+        },
         { status: 502 }
       );
     }
 
-    const completion = await openAiRes.json();
-    const rawContent = completion?.choices?.[0]?.message?.content;
+    const rawText: string =
+      geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const cleanedText = rawText
+      .replace(/^```json\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
 
-    if (!rawContent) {
+    let parsed: Record<string, unknown> = {};
+    try {
+      parsed = JSON.parse(cleanedText);
+    } catch {
       return NextResponse.json(
-        { error: 'No structured extraction returned from OCR.' },
+        { error: 'Could not parse OCR JSON response.' },
         { status: 502 }
       );
     }
 
-    const parsed = JSON.parse(rawContent) as StickerOcrPayload;
-    return NextResponse.json({ data: parsed });
+    const ocr = {
+      patient_first_name: String(parsed.patient_first_name || '').trim(),
+      patient_surname: String(parsed.patient_surname || '').trim(),
+      main_member_name: String(parsed.main_member_name || '').trim(),
+      patient_id_number: String(parsed.patient_id_number || '').trim(),
+      patient_dob: String(parsed.patient_dob || '').trim(),
+      postal_address: String(parsed.postal_address || '').trim(),
+      medical_aid_name: String(parsed.medical_aid_name || '').trim(),
+      medical_aid_option: String(parsed.medical_aid_option || '').trim(),
+      medical_aid_number: String(parsed.medical_aid_number || '').trim(),
+      dependent_code: String(parsed.dependent_code || '').trim(),
+      authorisation_number: String(parsed.authorisation_number || '').trim(),
+      patient_cellphone: String(parsed.patient_cellphone || '').trim(),
+      facility_name: String(parsed.facility_name || '').trim(),
+      referring_surgeon: String(parsed.referring_surgeon || '').trim(),
+      surgeon_practice_no: String(parsed.surgeon_practice_no || '').trim(),
+      confidence:
+        parsed.confidence === 'high' ||
+        parsed.confidence === 'medium' ||
+        parsed.confidence === 'low'
+          ? parsed.confidence
+          : 'medium',
+    };
+
+    return NextResponse.json({ ocr });
   } catch (err) {
-    console.error('Sticker OCR route error:', err);
     return NextResponse.json(
-      { error: 'Unexpected error processing sticker OCR.' },
+      {
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Unexpected error processing sticker OCR.',
+      },
       { status: 500 }
     );
   }

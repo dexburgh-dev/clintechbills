@@ -6,8 +6,9 @@ export interface ProcedureItem {
     | 'CATH_LAB'
     | 'CARDIAC_RHYTHM'
     | 'CRITICAL_CARE'
-    | 'DIAGNOSTICS'
-    | 'MODIFIER';
+    | 'NEURO'
+    | 'PULMONOLOGY'
+    | 'DIAGNOSTICS';
   is_time_addon?: boolean;
   paired_base_code?: string;
 }
@@ -33,6 +34,8 @@ export interface TheatreTimingResult {
   durationMinutes: number;
   thirtyMinUnits: number;
   extraThirtyMinAfterFirstHour: number;
+  extraHoursAfterFirstHour: number;
+  extraThirtyMinAfterFourHours: number;
   isAfterHours: boolean;
   isWeekend: boolean;
   afterHoursReason: string | null;
@@ -48,124 +51,270 @@ export interface CodingGuardrailAlert {
   fixUnits?: number;
 }
 
+export interface ConsumableItemEntry {
+  name: string;
+  qty: number;
+  expiryDate?: string;
+}
+
+export interface FilterItemEntry {
+  type: string;
+  qty: number;
+}
+
+export interface BloodBankUnitEntry {
+  bloodType: string;
+  unitNumber: string;
+}
+
+export interface PerfusionCaseMetadata {
+  mainMemberName?: string;
+  medicalAidOption?: string;
+  patientIdNumber?: string;
+  patientDob?: string;
+  postalAddress?: string;
+  authorisationNumber?: string;
+  surgeonPracticeNo?: string;
+  referringDoctor?: string;
+  procedurePerformed?: string;
+  bloodLossMl?: string;
+  cellSavedMl?: string;
+  cellSavedHct?: string;
+  hepsalineStrength?: '40 000' | '30 000' | '25 000' | '';
+  hepsalineQty?: number;
+  consumables?: ConsumableItemEntry[];
+  infusionFilters?: FilterItemEntry[];
+  bloodBankUnits?: BloodBankUnitEntry[];
+  theatreSister?: string;
+}
+
 export const DISCIPLINE_075_PROCEDURES: ProcedureItem[] = [
+  {
+    procedure_code: '75010',
+    procedure_description: 'ABLATIONS',
+    category: 'CARDIAC_RHYTHM',
+  },
   {
     procedure_code: '75011',
     procedure_description:
-      'AM PREPARATION OF EXTRA-CORPOREAL EQUIPMENT FOR SURGICAL PROCEDURES.',
+      'PREPARATION OF EXTRA-CORPOREAL EQUIPMENT FOR SURGICAL PROCEDURES.',
+    category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75012',
+    procedure_description:
+      'OPERATION OF HEART LASER DURING MYOCARDIAL REVASCULARISATION',
     category: 'PERFUSION',
   },
   {
     procedure_code: '75013',
     procedure_description:
-      'AM CONTINUED OPERATION OF EXTRA-CORPOREAL EQUIPMENT DURING SURGERY FOR A TIME IN EXCESS OF ONE HOUR IN 30 MINUTE INCREMENTS',
+      'CONTINUED OPERATION OF EXTRA-CORPOREAL EQUIPMENT DURING SURGERY FOR A TIME IN EXCESS OF ONE HOUR IN 30 MINUTE INCREMENTS OR PART THEREOF PROVIDED THAT',
     category: 'PERFUSION',
     is_time_addon: true,
     paired_base_code: '75011',
   },
   {
     procedure_code: '75014',
-    procedure_description: 'PM RADIOFREQUENCY CATHETER ABLATIONS',
+    procedure_description: 'RADIOFREQUENCY CATHETER ABLATIONS',
     category: 'CARDIAC_RHYTHM',
   },
   {
     procedure_code: '75015',
     procedure_description:
-      'AM PREPARATION AND OPERATION OF PRE-OPERATIVE, INTRA-OPERATIVE OR POST OPERATIVE PHYSIOLOGICAL MONITORING PER PATIENT, PER PROCEDURE',
+      'PREPARATION AND OPERATION OF PRE-OPERATIVE, INTRA-OPERATIVE OR POST OPERATIVE PHYSIOLOGICAL MONITORING PER PATIENT, PER ADMISSION',
     category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75017',
+    procedure_description:
+      'STANDBY WITH EXTRA-CORPOREAL EQUIPMENT FOR SURGERY WITHIN HOSPITAL',
+    category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75019',
+    procedure_description:
+      'STANDBY WITHIN THE HOSPITAL FOR CORONARY ANGIOPLASTY.',
+    category: 'PERFUSION',
   },
   {
     procedure_code: '75021',
     procedure_description:
-      'PM PREPARATION AND OPERATION OF INTRA-AORTIC BALLOON PUMP IN THEATRE, INTENSIVE CARE UNIT AND CATHETERISATION LABORATORY',
+      'PREPARATION AND OPERATION OF INTRA-AORTIC BALLOON PUMP IN THEATRE, INTENSIVE CARE UNIT AND CATHETERISATION LABORATORY.',
+    category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75023',
+    procedure_description:
+      'GLOBAL FEE FOR PREPARATION AND OPERATION AND REMOVAL OF CARDIO ASSIST DEVICE (LVAD, RVAD, BVAD) IN THEATRE AND INTENSIVE CARE UNIT.',
     category: 'PERFUSION',
   },
   {
     procedure_code: '75027',
     procedure_description:
-      'AM PREPARATION AND OPERATION OF A PRE- AND POST-OPERATIVE BLOOD SALVAGE DEVICE.',
+      'PREPARATION AND OPERATION OF A PRE- AND POST-OPERATIVE BLOOD SALVAGE DEVICE.',
     category: 'PERFUSION',
   },
   {
     procedure_code: '75029',
     procedure_description:
-      'PM PREPARATION AND OPERATION OF AN AUTOTRANSFUSION CELL WASHING SYSTEM.',
+      'PREPARATION AND OPERATION OF AN AUTOTRANSFUSION CELL WASHING SYSTEM.',
     category: 'PERFUSION',
   },
   {
     procedure_code: '75031',
     procedure_description:
-      'AM DETERMINATION AND MONITORING OF HAEMODYNAMIC/PULMONARY PARAMETERS, METABOLISM, ARTERIAL/VENOUS PRESSURE FLOW STUDIES',
+      'DETERMINATION AND MONITORING OF HAEMODYNAMIC/PULMONARY PARAMETERS, METABOLISM, ARTERIAL/VENOUS PRESSURE FLOW STUDIES IN HIGH CARE/ICU (PER PATIENT PER',
     category: 'CRITICAL_CARE',
   },
   {
     procedure_code: '75033',
     procedure_description:
-      'AM ASSISTANCE WITH BRONCHOSCOPY PROCEDURES, PLACEMENT OF ARTERIAL/VENOUS CATHETERS, ULTRASOUND EXAMINATIONS OR PHOTOGRAPHY',
+      'ASSISTANCE WITH BRONCHOSCOPY PROCEDURES, PLACEMENT OF ARTERIAL/VENOUS CATHETERS, ULTRASOUND EXAMINATIONS OR PHOTOGRAPHY.',
     category: 'CRITICAL_CARE',
   },
   {
-    procedure_code: '75049',
-    procedure_description: 'AM EXERCISE TESTING (EIA).',
+    procedure_code: '75034',
+    procedure_description: 'LYMPH COMPRESSION TREATMENT.',
     category: 'DIAGNOSTICS',
   },
   {
+    procedure_code: '75035',
+    procedure_description: 'NEBULIZATION (PER ONE PROCEDURE).',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75037',
+    procedure_description:
+      'MEASUREMENT OF LUNG VOLUMES AND CAPACITIES BY MEANS OF CLOSED CIRCUIT (HE) OR (N2) WASHOUT OR BODY PLETHYSMOGRAPHY.',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75039',
+    procedure_description: 'FLOW-VOLUME DETERMINATIONS.',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75041',
+    procedure_description: 'FLOW-VOLUME (PRE-POST B-D).',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75043',
+    procedure_description:
+      'AIRWAYS RESISTANCE AND CONDUCTANCE MEASUREMENTS USING PLETHYSMOGRAPH OR SIMILAR APPARATUS.',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75045',
+    procedure_description: 'GAS DISTRIBUTION MEASUREMENTS.',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75047',
+    procedure_description: 'DIFFUSION DETERMINATIONS.',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75049',
+    procedure_description: 'EXERCISE TESTING (EIA).',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75050',
+    procedure_description: 'ECMO CHANGE-OUT AND RE-ESTABLISHMENT.',
+    category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75051',
+    procedure_description:
+      'EXERCISE TESTING WITH RECORDING OF : VT, VO2, HR, RR, ECG AND OXIMETRY',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75053',
+    procedure_description: 'ALLERGY TESTS.',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75055',
+    procedure_description: 'IF RAST INCLUDED ADD (PER ALLERGEN).',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75057',
+    procedure_description: 'BRONCHIAL PROVOCATION TESTING.',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75059',
+    procedure_description: 'COMPLIANCE MEASUREMENTS.',
+    category: 'PULMONOLOGY',
+  },
+  {
+    procedure_code: '75061',
+    procedure_description:
+      'MAXIMUM INSPIRATORY (MIP) AND/OR EXPIRATORY (MEP) PRESSURES AND/OR VITAL CAPACITY AND/OR PEFR.',
+    category: 'PULMONOLOGY',
+  },
+  {
     procedure_code: '75062',
-    procedure_description: 'ASSIST IN PREP AND OP OF RROTABLATOR PROCEDURE',
+    procedure_description:
+      'ASSIST IN PREPARATIONS AND OPERATIONS OF ROTABLATOR PROCEDURES',
     category: 'CATH_LAB',
   },
   {
     procedure_code: '75063',
-    procedure_description: 'CARDIAC CATH FOR FIRST HOUR',
+    procedure_description: 'CARDIAC CATHETERISATION FOR THE FIRST HOUR.',
     category: 'CATH_LAB',
   },
   {
     procedure_code: '75064',
-    procedure_description: 'INTRAVASCULA ULTRASOUND',
+    procedure_description: 'INTRAVASCULAR ULTRASOUND (IVUS)',
     category: 'CATH_LAB',
   },
   {
     procedure_code: '75065',
     procedure_description:
-      'EACH ADDITIONAL 30 MIN OR PART THEREOF PROVIDED PART IS 50% OR MORE OF TIME',
+      'EACH ADDITIONAL 30 MINUTES OR PART THEREOF PROVIDED THAT SUCH PART COMPRISES 50% OR MORE OF THE TIME',
     category: 'CATH_LAB',
     is_time_addon: true,
     paired_base_code: '75063',
   },
   {
     procedure_code: '75066',
-    procedure_description:
-      'EACH ADDITIONAL 30 MIN OR PART THEREOF PROVIDED PART IS 50% OR MORE OF TIME',
+    procedure_description: 'CARDIAC CATH RIGHT HEART STUDIES',
     category: 'CATH_LAB',
-    is_time_addon: true,
-    paired_base_code: '75068',
   },
   {
     procedure_code: '75067',
     procedure_description:
-      'CARDIAC ELECTRO PHYSIOLOGY AND RELATED PROCEDURES FOR FIRST FOUR HOURS',
+      'CARDIAC ELECTRO PHYSIOLOGY AND RELATED PROCEDURES FOR FIRST FOUR HOURS.',
     category: 'CARDIAC_RHYTHM',
   },
   {
     procedure_code: '75068',
-    procedure_description: 'CARDIAC CATH TIGHT HEART STUDIES',
-    category: 'CATH_LAB',
+    procedure_description:
+      'EACH ADDITIONAL 30 MINUTES OR PART THEREOF PROVIDED THAT SUCH PART COMPRISES 50% OR MORE OF THE TIME.',
+    category: 'CARDIAC_RHYTHM',
+    is_time_addon: true,
+    paired_base_code: '75067',
   },
   {
     procedure_code: '75069',
-    procedure_description: 'TEMP AND SINGLE PACEMAKERS',
+    procedure_description: 'TEMPORARY AND SINGLE PACEMAKER PROCEDURES.',
     category: 'CARDIAC_RHYTHM',
   },
   {
     procedure_code: '75070',
     procedure_description:
-      'PERMANENT AND DUAL PACEMAKER PROCEDURE OR IMPLANTATION AND TESTING OF ICD DEVICES NOT CHARGED WITH 063 OR 065',
+      'PERMANENT AND DUAL PACEMAKER PROCEDURES OR IMPLANTATION AND TESTING OF ICD DEVICES.',
     category: 'CARDIAC_RHYTHM',
   },
   {
     procedure_code: '75071',
     procedure_description:
-      'EACH ADDITIONAL 30 MIN OR PART THEREOF PROVIDED PART IS 50% OR MORE OF TIME',
+      'EACH ADDITIONAL 30 MINUTES OR PART THEREOF PROVIDED THAT SUCH PART COMPRISES 50% OR MORE OF THE TIME.',
     category: 'CARDIAC_RHYTHM',
     is_time_addon: true,
     paired_base_code: '75070',
@@ -177,100 +326,363 @@ export const DISCIPLINE_075_PROCEDURES: ProcedureItem[] = [
   },
   {
     procedure_code: '75073',
-    procedure_description: 'DILITATION PROCEDURES AND STENTS',
+    procedure_description: 'DILATATION PROCEDURES AND STENTS.',
     category: 'CATH_LAB',
   },
   {
     procedure_code: '75074',
     procedure_description:
-      'WAVEMAP-MEASUREMENT OF FRACTIONAL FLOW RESERVE TO ASSESS THE FUNCTIONAL SEVERITY OF CORONARY ARTERY STENOSIS',
+      'WAVEMAP - MEASUREMENT OF FRACTIONAL FLOW RESERVE TO ASSESS THE FUNCTIONAL SEVERITY OF CORONARY ARTERY STENOSES',
     category: 'CATH_LAB',
   },
   {
     procedure_code: '75075',
-    procedure_description: 'PACEMAKER CHECKING AND OR REPROGRAMMING',
+    procedure_description: 'PACEMAKER CHECKING AND/OR REPROGRAMMING.',
     category: 'CARDIAC_RHYTHM',
   },
   {
     procedure_code: '75077',
-    procedure_description: '24 HOUR HOLTER AMBULATORY MONITORING',
+    procedure_description: '24 HOUR HOLTER AMBULATORY MONITORING.',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75079',
-    procedure_description: 'CARDIAC EXCERSIZE STRESS TESTING',
+    procedure_description: 'CARDIAC EXERCISE STRESS TESTING.',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75081',
-    procedure_description: 'RECORDING OF TWELVE LEAD ECG',
+    procedure_description: 'RECORDING OF TWELVE LEAD ECG.',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75085',
     procedure_description:
-      'AM EACH ADDITIONAL 30 MINUTES OR PART THEREOF, PROVIDED THAT SUCH PART COMPRISES 50% OR MORE OF THE TIME.',
+      'EACH ADDITIONAL 30 MINUTES OR PART THEREOF, PROVIDED THAT SUCH PART COMPRISES 50% OR MORE OF THE TIME.',
     category: 'CRITICAL_CARE',
     is_time_addon: true,
     paired_base_code: '75145',
   },
   {
     procedure_code: '75087',
-    procedure_description: 'M MODE ECHOCARDIOGRAM',
+    procedure_description: 'M MODE ECHOCARDIOGRAM.',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75089',
-    procedure_description: '2D ECHOCARDIOGRAM',
+    procedure_description: '2D ECHOCARDIOGRAM.',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75091',
-    procedure_description: 'DOPPLER FLOW',
+    procedure_description: 'DOPPLER FLOW.',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75093',
-    procedure_description: 'COLOR IMAGING',
+    procedure_description: 'COLOUR IMAGING.',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75095',
-    procedure_description: 'ECG SIGNAL AVERAGING',
+    procedure_description: 'ECG SIGNAL AVERAGING (HI-RES).',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75097',
-    procedure_description: 'AMBULATORY BLOOD PRESSURE MONITORING',
+    procedure_description: 'AMBULATORY BLOODPRESSURE MONITORING.',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75099',
-    procedure_description: 'VECTOR CARDIOGRAM',
+    procedure_description: 'VECTOR CARDIOGRAM.',
     category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75111',
-    procedure_description: 'TRANSOESOPHAGEAL ECHOCARDIOGRAM',
+    procedure_description: 'TRANSOESOPHAGEAL ECHOCARDIOGRAM.',
     category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75115',
+    procedure_description:
+      'ADDITIONAL 2 NERVES (USED AS ADJUNCT WITH NERVE CONDUCTION STUDIES, INCLUDING F-WAVES, H-REFLEXES OR ADDITIONAL NERVES REQUIRED FOR DIAGNOSIS)',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75116',
+    procedure_description:
+      'PREPARATION AND OPERATION OF AN ARTIFICIAL HEART (BERLIN-HEART)',
+    category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75117',
+    procedure_description:
+      'ELECTRORETINOGRAPHY (ERG) - UNILATERAL OR ELECTRO-OCULOGRAPHY (EOG)',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75118',
+    procedure_description:
+      'DAILY MONITORING OF ARTIFICIAL HEART, PER HOUR',
+    category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75119',
+    procedure_description: 'SLEEP EEG.',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75125',
+    procedure_description: 'MULTIPLE SLEEP LATENCY TEST (MSLT)',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75127',
+    procedure_description: 'OVERNIGHT CPAP TITRATION.',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75132',
+    procedure_description:
+      'MOBILE EEG SETUP IN ICU (TO BE ADDED TO ITEM 133 IF APPROPRIATE)',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75133',
+    procedure_description: 'EEG WITH SPECIAL ACTIVATION.',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75135',
+    procedure_description:
+      'ELECTROMYOGRAPHY : NEEDLE EXAMINATION PER MUSCLE/CONDUCTION VELOCITY (MOTOR/SENSORY) EACH, TO A MAXIMUM OF 5.',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75137',
+    procedure_description:
+      'INTRA-OPERATIVE EVOKED POTENTIALS FOR THE 1ST HOUR',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75139',
+    procedure_description:
+      'EACH ADDITIONAL HOUR OR PART THEREOF PROVIDED THAT SUCH PART COMPRISES 50% OR MORE OF THE TIME.',
+    category: 'NEURO',
+    is_time_addon: true,
+    paired_base_code: '75137',
+  },
+  {
+    procedure_code: '75141',
+    procedure_description: 'INTRA-OPERATIVE EEG (CAROTID ENDARTERECTOMY).',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75143',
+    procedure_description: 'TRANSCRANIAL OR CAROTID DOPPLER (BILATERAL).',
+    category: 'NEURO',
   },
   {
     procedure_code: '75145',
     procedure_description:
-      'AM PREPARATION OF EXTRA-CORPOREAL EQUIPMENT: HAEMOPERFUSION (HP), HAEMOFILTRATION (HF), HAEMOCONCENTRATION (HC), CONTINUOUS RENAL REPLACEMENT THERAPY (CRRT)',
+      'PREPARATION OF EXTRA-CORPOREAL EQUIPMENT: HAEMOPERFUSION (HP), HAEMOFILTRATION (HF), HAEMOCONCENTRATION (HC), CONTINUOUS RENAL REPLACEMENT THERAPY (CR',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75146',
+    procedure_description: 'CHRONIC HAEMODIALYSIS (ACETATE DIALYSATE)',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75147',
+    procedure_description: 'PERITONEAL DIALYSIS, PER DAY',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75148',
+    procedure_description: 'CHRONIC HAEMODIALYSIS (BICARBONATE DIALYSATE)',
     category: 'CRITICAL_CARE',
   },
   {
     procedure_code: '75149',
     procedure_description:
-      'AM TREATMENT PROCEDURE PER 1 HOUR (EXCLUDING ACUTE HAEMODIALYSIS, CHRONIC HAEMODIALYSIS AND CRRT)',
+      'TREATMENT PROCEDURE PER 1 HOUR (EXCLUDING ACUTE HAEMODIALYSIS, CHRONIC HAEMODIALYSIS AND CRRT)',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75150',
+    procedure_description: 'ACUTE HAEMODIALYSIS',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75151',
+    procedure_description:
+      'TREATMENT PROCEDURES FOR CRRT UP TO 6 HOURS OR PART THEREOF PROVIDED THAT SUCH PART COMPRISES 50% OR MORE OF THE TIME',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75152',
+    procedure_description:
+      'TREATMENT PROCEDURE FOR CRRT UP TO 12 HOURS OR PART THEREOF PROVIDED THAT SUCH PART COMPRISES MORE THAN 6 HOURS OF THE TIME',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75153',
+    procedure_description:
+      'PATIENT TRAINING IN CENTRE FOR DIALYSIS, CPAP TRAINING AND PROBLEM-SOLVING, HOME VENTILATORS AND NEBULISERS, PER 30 MINUTES (TO MAXIMUM OF 24 HOURS)',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75154',
+    procedure_description:
+      'TREATMENT PROCEDURE FOR CRRT UP TO 18 HOURS OR PART THEREOF PROVIDED THAT SUCH PART COMPRISES MORE THAN 12 HOURS OF THE TIME',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75155',
+    procedure_description:
+      "PATIENT TRAINING OR FOLLOW-UP AT PATIENT'S HOME, FOR DIALYSIS, HOME VENTILATORS AND NEBULISERS, PER 30 MINUTES (TO MAXIMUM OF 24 HOURS).",
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75156',
+    procedure_description:
+      'TREATMENT PROCEDURE FOR CRRT UP TO 24 HOURS OR PART THEREOF PROVIDED THAT SUCH PART COMPRISES MORE THAN 18 HOURS OF THE TIME',
     category: 'CRITICAL_CARE',
   },
   {
     procedure_code: '75157',
     procedure_description:
-      'AM STANDBY WITH EXTRA CORPOREAL EQUIPMENT (MAXIMUM 4 HOURS) (PER EVENT).',
+      'STANDBY WITH EXTRA CORPOREAL EQUIPMENT (MAXIMUM 4 HOURS) (PER EVENT).',
     category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75159',
+    procedure_description: 'POST VASECTOMY SEMEN ANALYSIS.',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75161',
+    procedure_description: 'COMPLETE SEMEN ANALYSIS.',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75163',
+    procedure_description: 'SEMEN WASH FOR A I.',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75165',
+    procedure_description:
+      'IVF, GIFT, PROST WITH SEMEN AND SERUM PREPARATION INCLUDING OVUM AND EMBRYO HANDLING AND TRANSFER',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75167',
+    procedure_description: 'OVUM AND EMBRYO FREEZING.',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75169',
+    procedure_description: 'SEMEN FREEZING.',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75171',
+    procedure_description: 'TRAVELLING PER KM IN EXCESS OF 16KM (IN OWN CAR).',
+    category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75173',
+    procedure_description: 'EQUIPMENT HIRE (BY ARRANGEMENT WITH SCHEME).',
+    category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75175',
+    procedure_description: 'MEDICATION / MATERIAL',
+    category: 'PERFUSION',
+  },
+  {
+    procedure_code: '75176',
+    procedure_description:
+      'GLOBAL FEE FOR CONTINUOUS AMBULATORY PERITONEAL DIALYSIS (CAPD), PER 30 DAY PERIOD.',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75177',
+    procedure_description:
+      'GLOBAL FEE FOR AUTOMATED PERITONEAL DIALYSIS (APD), PER 30 DAY PERIOD.',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75178',
+    procedure_description:
+      'SHORT LATENCY BRAINSTEM AUDITORY EVOKED POTENTIALS, NEUROLOGICAL EXAMINATION, BILATERAL',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75179',
+    procedure_description:
+      'AUDITORY EVOKED POTENTIALS, FULL AUDIOLOGICAL EXAMINATION, BILATERAL',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75180',
+    procedure_description:
+      'PATTERN-REVERSAL VISUAL EVOKED POTENTIALS: FULL EVALUATION OF VISUAL PATHWAYS, UNILATERAL',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75181',
+    procedure_description:
+      'SOMATOSENSORY EVOKED POTENTIALS, UNILATERAL, UPPER LIMB',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75182',
+    procedure_description:
+      'SOMATOSENSORY EVOKED POTENTIALS, UNILATERAL, LOWER LIMB',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75183',
+    procedure_description:
+      'ELECTRONYSTAGMOGRAPHY FOR SPONTANEOUS AND POSITIONAL NYSTAGMUS (3253)',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75184',
+    procedure_description:
+      'CALORIC TEST DONE WITH ELECTRONYSTAGMOGRAPHY (3255)',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75185',
+    procedure_description: 'OVERNIGHT POLYSOMNOGRAPHY',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75186',
+    procedure_description: 'OBSTRUCTIVE SLEEP APNEA SCREENING',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75187',
+    procedure_description:
+      'LONG TERM EEG MONITORING WITH A MINIMUM OF 8 HOURS (BUT LESS THAN 16 HOURS) RECORDING TIME, INCLUDING PREPARATION (COLLODION ADHESIVE TECHNIQUE WITH A',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75188',
+    procedure_description:
+      'LONG TERM EEG MONITORING WITH 16 TO 24 HOURS RECORDING TIME, INCLUDING PREPARATION (COLLODION ADHESIVE TECHNIQUE WITH AT LEAST 21 ELECTRODES) AND INTE',
+    category: 'NEURO',
+  },
+  {
+    procedure_code: '75418',
+    procedure_description: 'CHRONIC HAEMODIALYSIS (BICARBONATE DIALYSATE)',
+    category: 'CRITICAL_CARE',
   },
 ];
 
@@ -290,101 +702,61 @@ export const DEFAULT_ICD10_CODES: Icd10Item[] = [
   { code: 'J96.0', description: 'Acute respiratory failure' },
   { code: 'Q21.0', description: 'Ventricular septal defect' },
   { code: 'Q21.1', description: 'Atrial septal defect' },
+  { code: 'M00.06', description: 'Staphylococcal arthritis and polyarthritis, lower leg' },
+  { code: 'M86.46', description: 'Chronic osteomyelitis with draining sinus, lower leg' },
+  { code: 'D26.9', description: 'Other benign neoplasm of uterus, unspecified' },
+  { code: 'N83.0', description: 'Follicular cyst of ovary' },
   { code: 'G47.3', description: 'Sleep apnoea' },
   { code: 'J45.9', description: 'Asthma, unspecified' },
-];
-
-export const CLINICAL_MACROS: ClinicalMacro[] = [
-  {
-    id: 'cpb-cell-saver',
-    label: 'CPB Bypass + Cell Saver',
-    subtitle: '75011 + 75013 (time) + 75029',
-    codes: ['75011', '75013', '75029'],
-    defaultIcd10: {
-      code: 'I25.1',
-      description: 'Atherosclerotic heart disease of native coronary artery',
-    },
-  },
-  {
-    id: 'cpb-iabp',
-    label: 'CPB + Cell Saver + IABP',
-    subtitle: '75011 + 75013 (time) + 75029 + 75021',
-    codes: ['75011', '75013', '75029', '75021'],
-    defaultIcd10: {
-      code: 'I35.0',
-      description: 'Nonrheumatic aortic (valve) stenosis',
-    },
-  },
-  {
-    id: 'cath-stent',
-    label: 'Cardiac Cath + Stents',
-    subtitle: '75063 + 75065 (time) + 75073',
-    codes: ['75063', '75065', '75073'],
-    defaultIcd10: {
-      code: 'I21.9',
-      description: 'Acute myocardial infarction, unspecified',
-    },
-  },
-  {
-    id: 'ppm-dual-icd',
-    label: 'Dual Pacemaker / ICD',
-    subtitle: '75070 + 75071 (time)',
-    codes: ['75070', '75071'],
-    defaultIcd10: {
-      code: 'I44.2',
-      description: 'Atrioventricular block, complete',
-    },
-  },
-  {
-    id: 'ep-ablation',
-    label: 'EP Study + RF Ablation',
-    subtitle: '75067 (First 4h) + 75014',
-    codes: ['75067', '75014'],
-    defaultIcd10: {
-      code: 'I48.0',
-      description: 'Paroxysmal atrial fibrillation',
-    },
-  },
-  {
-    id: 'crrt-hf',
-    label: 'CRRT / Haemofiltration',
-    subtitle: '75145 + 75085 (time)',
-    codes: ['75145', '75085'],
-    defaultIcd10: {
-      code: 'N17.9',
-      description: 'Acute kidney failure, unspecified',
-    },
-  },
 ];
 
 export const TIME_ADDON_PAIRINGS: Array<{
   baseCode: string;
   addonCode: string;
+  baseThresholdMinutes: number;
+  incrementMinutes: number;
   label: string;
 }> = [
   {
     baseCode: '75011',
     addonCode: '75013',
+    baseThresholdMinutes: 60,
+    incrementMinutes: 30,
     label: 'Extra-Corporeal Surgical Equipment (> 60m)',
   },
   {
     baseCode: '75063',
     addonCode: '75065',
+    baseThresholdMinutes: 60,
+    incrementMinutes: 30,
     label: 'Cardiac Catheterisation (> 60m)',
   },
   {
-    baseCode: '75068',
-    addonCode: '75066',
-    label: 'Cardiac Cath Right Heart Studies (> 60m)',
+    baseCode: '75067',
+    addonCode: '75068',
+    baseThresholdMinutes: 240,
+    incrementMinutes: 30,
+    label: 'Cardiac Electrophysiology (> 4 hrs)',
   },
   {
     baseCode: '75070',
     addonCode: '75071',
+    baseThresholdMinutes: 60,
+    incrementMinutes: 30,
     label: 'Permanent / Dual Pacemaker or ICD (> 60m)',
+  },
+  {
+    baseCode: '75137',
+    addonCode: '75139',
+    baseThresholdMinutes: 60,
+    incrementMinutes: 60,
+    label: 'Intra-Operative Evoked Potentials (> 60m, per hour)',
   },
   {
     baseCode: '75145',
     addonCode: '75085',
+    baseThresholdMinutes: 60,
+    incrementMinutes: 30,
     label: 'HP / HF / HC / CRRT Extra-Corporeal Run (> 60m)',
   },
 ];
@@ -392,9 +764,10 @@ export const TIME_ADDON_PAIRINGS: Array<{
 export const ALL_TIME_ADDON_CODES = new Set([
   '75013',
   '75065',
-  '75066',
+  '75068',
   '75071',
   '75085',
+  '75139',
 ]);
 
 export function calculateTheatreTiming(
@@ -415,6 +788,8 @@ export function calculateTheatreTiming(
       durationMinutes: 0,
       thirtyMinUnits: 0,
       extraThirtyMinAfterFirstHour: 0,
+      extraHoursAfterFirstHour: 0,
+      extraThirtyMinAfterFourHours: 0,
       isAfterHours: false,
       isWeekend: false,
       afterHoursReason: null,
@@ -424,19 +799,32 @@ export function calculateTheatreTiming(
   const startTotal = sh * 60 + sm;
   let endTotal = eh * 60 + em;
 
-  // Handle overnight cases crossing midnight
   if (endTotal < startTotal) {
     endTotal += 24 * 60;
   }
 
   const durationMinutes = Math.max(0, endTotal - startTotal);
   const thirtyMinUnits = durationMinutes > 0 ? Math.ceil(durationMinutes / 30) : 0;
-  // Subsequent 30-min increments apply after first 60m (provided part is >= 50% i.e. >= 15 mins)
-  const extraMinutes = Math.max(0, durationMinutes - 60);
-  const fullBlocks = Math.floor(extraMinutes / 30);
-  const remainderMinutes = extraMinutes % 30;
+
+  // 30-min increments after 1st hour (part >= 50% i.e. >= 15 mins)
+  const extraMinutes60 = Math.max(0, durationMinutes - 60);
+  const full30Blocks = Math.floor(extraMinutes60 / 30);
+  const rem30 = extraMinutes60 % 30;
   const extraThirtyMinAfterFirstHour =
-    extraMinutes > 0 ? fullBlocks + (remainderMinutes >= 15 ? 1 : 0) : 0;
+    extraMinutes60 > 0 ? full30Blocks + (rem30 >= 15 ? 1 : 0) : 0;
+
+  // 60-min increments after 1st hour (part >= 50% i.e. >= 30 mins) for 75139
+  const full60Blocks = Math.floor(extraMinutes60 / 60);
+  const rem60 = extraMinutes60 % 60;
+  const extraHoursAfterFirstHour =
+    extraMinutes60 > 0 ? full60Blocks + (rem60 >= 30 ? 1 : 0) : 0;
+
+  // 30-min increments after first 4 hours (240 mins) for 75068
+  const extraMinutes240 = Math.max(0, durationMinutes - 240);
+  const full240Blocks = Math.floor(extraMinutes240 / 30);
+  const rem240 = extraMinutes240 % 30;
+  const extraThirtyMinAfterFourHours =
+    extraMinutes240 > 0 ? full240Blocks + (rem240 >= 15 ? 1 : 0) : 0;
 
   let isWeekend = false;
   if (serviceDate) {
@@ -464,10 +852,21 @@ export function calculateTheatreTiming(
     durationMinutes,
     thirtyMinUnits,
     extraThirtyMinAfterFirstHour,
+    extraHoursAfterFirstHour,
+    extraThirtyMinAfterFourHours,
     isAfterHours,
     isWeekend,
     afterHoursReason,
   };
+}
+
+export function getExpectedAddonUnits(
+  addonCode: string,
+  timing: TheatreTimingResult
+): number {
+  if (addonCode === '75139') return timing.extraHoursAfterFirstHour;
+  if (addonCode === '75068') return timing.extraThirtyMinAfterFourHours;
+  return timing.extraThirtyMinAfterFirstHour;
 }
 
 export function evaluateDiscipline075Guardrails(params: {
@@ -482,56 +881,36 @@ export function evaluateDiscipline075Guardrails(params: {
     selectedTariffs.map((t) => [t.procedure_code, t])
   );
 
-  // 1. Check missing time add-on codes when duration > 60 minutes (with >=15 min part rule)
-  if (timing.extraThirtyMinAfterFirstHour > 0) {
-    for (const pair of TIME_ADDON_PAIRINGS) {
+  for (const pair of TIME_ADDON_PAIRINGS) {
+    const expectedUnits = getExpectedAddonUnits(pair.addonCode, timing);
+    if (expectedUnits > 0) {
       if (selectedMap.has(pair.baseCode) && !selectedMap.has(pair.addonCode)) {
         alerts.push({
           id: `missing-addon-${pair.addonCode}`,
           severity: 'warning',
           title: `Missing Time Units (${pair.addonCode})`,
-          detail: `${pair.label} ran ${timing.durationMinutes} mins (${timing.extraThirtyMinAfterFirstHour} extra 30-min units after the first hour).`,
-          fixActionLabel: `Add ${pair.addonCode} (×${timing.extraThirtyMinAfterFirstHour})`,
+          detail: `${pair.label} ran ${timing.durationMinutes} mins (${expectedUnits} extra unit${expectedUnits === 1 ? '' : 's'}).`,
+          fixActionLabel: `Add ${pair.addonCode} (×${expectedUnits})`,
           fixCode: pair.addonCode,
-          fixUnits: timing.extraThirtyMinAfterFirstHour,
+          fixUnits: expectedUnits,
         });
       }
-    }
-  }
 
-  // 2. Check if selected time add-on units are out of sync with duration
-  if (timing.extraThirtyMinAfterFirstHour > 0) {
-    for (const pair of TIME_ADDON_PAIRINGS) {
       const addon = selectedMap.get(pair.addonCode);
-      if (addon && addon.units !== timing.extraThirtyMinAfterFirstHour) {
+      if (addon && addon.units !== expectedUnits) {
         alerts.push({
           id: `sync-addon-${pair.addonCode}`,
           severity: 'info',
           title: `Time Units Mismatch on ${pair.addonCode}`,
-          detail: `Case duration is ${timing.durationMinutes} mins (${timing.extraThirtyMinAfterFirstHour} units after 1st hr), but ${pair.addonCode} is set to ×${addon.units}.`,
-          fixActionLabel: `Set ${pair.addonCode} to ×${timing.extraThirtyMinAfterFirstHour}`,
+          detail: `Duration is ${timing.durationMinutes} mins (${expectedUnits} unit${expectedUnits === 1 ? '' : 's'}), but ${pair.addonCode} is set to ×${addon.units}.`,
+          fixActionLabel: `Set ${pair.addonCode} to ×${expectedUnits}`,
           fixCode: pair.addonCode,
-          fixUnits: timing.extraThirtyMinAfterFirstHour,
+          fixUnits: expectedUnits,
         });
       }
     }
   }
 
-  // 3. Enforce tariff 75070 rule: NOT CHARGED WITH 75063 OR 75065
-  if (
-    selectedMap.has('75070') &&
-    (selectedMap.has('75063') || selectedMap.has('75065'))
-  ) {
-    alerts.push({
-      id: 'conflict-75070-063-065',
-      severity: 'warning',
-      title: 'Tariff Exclusion Conflict (75070 vs 75063/75065)',
-      detail:
-        'Per Discipline 075 rules, tariff 75070 (Permanent/Dual Pacemaker or ICD) may NOT be charged together with 75063 or 75065. Remove 75063/75065 or use 75071 for additional 30-min time.',
-    });
-  }
-
-  // 4. After-hours / weekend reminder
   if (timing.isAfterHours) {
     alerts.push({
       id: 'after-hours-note',
@@ -542,4 +921,134 @@ export function evaluateDiscipline075Guardrails(params: {
   }
 
   return alerts;
+}
+
+// Structured Perfusion / Sheet Metadata Serializer & Parser (stored cleanly inside clinical_notes)
+const META_BLOCK_PREFIX = '[PERFUSION_META]:';
+
+export function hasAnyPerfusionMetadata(meta: PerfusionCaseMetadata): boolean {
+  return Boolean(
+    meta.mainMemberName?.trim() ||
+      meta.medicalAidOption?.trim() ||
+      meta.patientIdNumber?.trim() ||
+      meta.patientDob?.trim() ||
+      meta.postalAddress?.trim() ||
+      meta.authorisationNumber?.trim() ||
+      meta.surgeonPracticeNo?.trim() ||
+      meta.referringDoctor?.trim() ||
+      meta.procedurePerformed?.trim() ||
+      meta.bloodLossMl?.trim() ||
+      meta.cellSavedMl?.trim() ||
+      meta.cellSavedHct?.trim() ||
+      meta.hepsalineStrength?.trim() ||
+      (meta.consumables && meta.consumables.some((c) => c.qty > 0)) ||
+      (meta.infusionFilters && meta.infusionFilters.some((f) => f.qty > 0)) ||
+      (meta.bloodBankUnits &&
+        meta.bloodBankUnits.some(
+          (b) => b.bloodType.trim() || b.unitNumber.trim()
+        )) ||
+      meta.theatreSister?.trim()
+  );
+}
+
+export function cleanPerfusionMetadata(
+  meta: PerfusionCaseMetadata
+): PerfusionCaseMetadata {
+  const cleaned: PerfusionCaseMetadata = {};
+  if (meta.mainMemberName?.trim()) cleaned.mainMemberName = meta.mainMemberName.trim();
+  if (meta.medicalAidOption?.trim())
+    cleaned.medicalAidOption = meta.medicalAidOption.trim();
+  if (meta.patientIdNumber?.trim())
+    cleaned.patientIdNumber = meta.patientIdNumber.trim();
+  if (meta.patientDob?.trim()) cleaned.patientDob = meta.patientDob.trim();
+  if (meta.postalAddress?.trim()) cleaned.postalAddress = meta.postalAddress.trim();
+  if (meta.authorisationNumber?.trim())
+    cleaned.authorisationNumber = meta.authorisationNumber.trim();
+  if (meta.surgeonPracticeNo?.trim())
+    cleaned.surgeonPracticeNo = meta.surgeonPracticeNo.trim();
+  if (meta.referringDoctor?.trim())
+    cleaned.referringDoctor = meta.referringDoctor.trim();
+  if (meta.procedurePerformed?.trim())
+    cleaned.procedurePerformed = meta.procedurePerformed.trim();
+  if (meta.bloodLossMl?.trim()) cleaned.bloodLossMl = meta.bloodLossMl.trim();
+  if (meta.cellSavedMl?.trim()) cleaned.cellSavedMl = meta.cellSavedMl.trim();
+  if (meta.cellSavedHct?.trim()) cleaned.cellSavedHct = meta.cellSavedHct.trim();
+  if (meta.hepsalineStrength?.trim()) {
+    cleaned.hepsalineStrength = meta.hepsalineStrength;
+    cleaned.hepsalineQty = meta.hepsalineQty && meta.hepsalineQty > 0 ? meta.hepsalineQty : 1;
+  }
+  const activeConsumables = (meta.consumables || []).filter((c) => c.qty > 0);
+  if (activeConsumables.length > 0) cleaned.consumables = activeConsumables;
+
+  const activeFilters = (meta.infusionFilters || []).filter((f) => f.qty > 0);
+  if (activeFilters.length > 0) cleaned.infusionFilters = activeFilters;
+
+  const activeUnits = (meta.bloodBankUnits || []).filter(
+    (b) => b.bloodType.trim() || b.unitNumber.trim()
+  );
+  if (activeUnits.length > 0) cleaned.bloodBankUnits = activeUnits;
+
+  if (meta.theatreSister?.trim()) cleaned.theatreSister = meta.theatreSister.trim();
+  return cleaned;
+}
+
+export function serializeCaseNotesWithMetadata(params: {
+  plainNotes: string;
+  resolutionReplies: string[];
+  metadata: PerfusionCaseMetadata;
+}): string | null {
+  const lines: string[] = [];
+  if (params.plainNotes.trim()) {
+    lines.push(params.plainNotes.trim());
+  }
+  for (const r of params.resolutionReplies) {
+    if (r.trim()) {
+      lines.push(`[Query Reply: ${r.trim()}]`);
+    }
+  }
+  const cleanedMeta = cleanPerfusionMetadata(params.metadata);
+  if (hasAnyPerfusionMetadata(cleanedMeta)) {
+    lines.push(`${META_BLOCK_PREFIX}${JSON.stringify(cleanedMeta)}`);
+  }
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
+export function parseCaseNotesWithMetadata(rawNotes: string | null): {
+  baseNotes: string;
+  resolutionReplies: string[];
+  metadata: PerfusionCaseMetadata;
+} {
+  if (!rawNotes) {
+    return { baseNotes: '', resolutionReplies: [], metadata: {} };
+  }
+  const lines = rawNotes.split('\n');
+  const baseLines: string[] = [];
+  const replies: string[] = [];
+  let metadata: PerfusionCaseMetadata = {};
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith(META_BLOCK_PREFIX)) {
+      try {
+        const parsed = JSON.parse(
+          trimmed.slice(META_BLOCK_PREFIX.length)
+        ) as PerfusionCaseMetadata;
+        if (parsed && typeof parsed === 'object') {
+          metadata = parsed;
+        }
+      } catch {
+        // Ignore malformed metadata line
+      }
+    } else if (trimmed.startsWith('[Query Reply:') && trimmed.endsWith(']')) {
+      replies.push(trimmed.slice('[Query Reply:'.length, -1).trim());
+    } else if (trimmed.length > 0) {
+      baseLines.push(line);
+    }
+  }
+
+  return {
+    baseNotes: baseLines.join('\n').trim(),
+    resolutionReplies: replies,
+    metadata,
+  };
 }

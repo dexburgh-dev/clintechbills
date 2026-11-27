@@ -10,8 +10,11 @@ import {
   Camera,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Copy,
+  Droplets,
   Edit3,
   FileText,
   FolderPlus,
@@ -38,6 +41,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { useLicenseEntitlement } from '@/hooks/useLicenseEntitlement';
 import { LicenseBanner } from '@/components/LicenseBanner';
+import { PerfusionCaseSummary } from '@/components/PerfusionCaseSummary';
 import {
   compressStickerImage,
   runStickerOcr,
@@ -49,7 +53,14 @@ import {
   DEFAULT_ICD10_CODES,
   DISCIPLINE_075_PROCEDURES,
   evaluateDiscipline075Guardrails,
+  getExpectedAddonUnits,
+  parseCaseNotesWithMetadata,
+  serializeCaseNotesWithMetadata,
+  type BloodBankUnitEntry,
+  type ConsumableItemEntry,
+  type FilterItemEntry,
   type Icd10Item,
+  type PerfusionCaseMetadata,
   type ProcedureItem,
   type SelectedTariff,
 } from '@/data/discipline075';
@@ -95,52 +106,61 @@ type ProcCategoryFilter =
   | 'CATH_LAB'
   | 'CARDIAC_RHYTHM'
   | 'CRITICAL_CARE'
+  | 'NEURO'
+  | 'PULMONOLOGY'
   | 'DIAGNOSTICS';
 
 const CATEGORY_TABS: Array<{ id: ProcCategoryFilter; label: string }> = [
-  { id: 'ALL', label: 'All Codes' },
+  { id: 'ALL', label: 'All (106)' },
   { id: 'PERFUSION', label: 'Perfusion' },
   { id: 'CATH_LAB', label: 'Cath Lab' },
   { id: 'CARDIAC_RHYTHM', label: 'Pacing & EP' },
   { id: 'CRITICAL_CARE', label: 'Critical Care' },
+  { id: 'NEURO', label: 'Neuro' },
+  { id: 'PULMONOLOGY', label: 'Pulmonology' },
   { id: 'DIAGNOSTICS', label: 'Diagnostics' },
 ];
 
-// Codes where practitioners routinely adjust QTY (hours, standby, or 30-min increments)
 const QTY_HIGHLIGHT_CODES = new Set([
   '75149',
   '17149',
   '75157',
+  '75017',
+  '75019',
+  '75118',
   '75013',
   '75065',
-  '75066',
+  '75068',
   '75071',
   '75085',
+  '75139',
 ]);
 
-function splitNotesAndResolution(rawNotes: string | null): {
-  baseNotes: string;
-  resolutionReplies: string[];
-} {
-  if (!rawNotes) return { baseNotes: '', resolutionReplies: [] };
-  const lines = rawNotes.split('\n');
-  const baseLines: string[] = [];
-  const replies: string[] = [];
+const PERFUSION_TRIGGER_CODES = new Set([
+  '75011',
+  '75017',
+  '75021',
+  '75027',
+  '75029',
+  '75050',
+  '75145',
+  '75149',
+]);
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('[Query Reply:') && trimmed.endsWith(']')) {
-      replies.push(trimmed.slice('[Query Reply:'.length, -1).trim());
-    } else if (trimmed.length > 0) {
-      baseLines.push(line);
-    }
-  }
+const DEFAULT_CONSUMABLES_TEMPLATE: ConsumableItemEntry[] = [
+  { name: 'TX/225', qty: 0, expiryDate: '' },
+  { name: 'TX/175', qty: 0, expiryDate: '' },
+  { name: 'TX/125', qty: 0, expiryDate: '' },
+  { name: 'FLOCELKT', qty: 0, expiryDate: '' },
+  { name: 'XRES Reservoir', qty: 0, expiryDate: '' },
+];
 
-  return {
-    baseNotes: baseLines.join('\n').trim(),
-    resolutionReplies: replies,
-  };
-}
+const DEFAULT_FILTERS_TEMPLATE: FilterItemEntry[] = [
+  { type: 'SB1E', qty: 0 },
+  { type: 'SQ40', qty: 0 },
+  { type: 'RS1', qty: 0 },
+  { type: 'RS2', qty: 0 },
+];
 
 export default function PractitionerCapturePage() {
   const router = useRouter();
@@ -157,7 +177,7 @@ export default function PractitionerCapturePage() {
   const [practiceName, setPracticeName] = useState<string>('Clinical Technology (075)');
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Catalogue Data (Embedded + JSON from public/data)
+  // Catalogue Data
   const [icdCatalogue, setIcdCatalogue] = useState<Icd10Item[]>(DEFAULT_ICD10_CODES);
   const [procedureCatalogue, setProcedureCatalogue] = useState<ProcedureItem[]>(
     DISCIPLINE_075_PROCEDURES
@@ -175,29 +195,38 @@ export default function PractitionerCapturePage() {
   const [ocrResult, setOcrResult] = useState<StickerOcrPayload | null>(null);
   const [ocrNotice, setOcrNotice] = useState<string | null>(null);
 
-  // Extracted Medical Scheme & Hospital Metadata
-  const [medicalAidName, setMedicalAidName] = useState('');
-  const [medicalAidNumber, setMedicalAidNumber] = useState('');
-  const [dependentCode, setDependentCode] = useState('');
-  const [patientCellphone, setPatientCellphone] = useState('');
-  const [facilityName, setFacilityName] = useState('');
-
-  // Core Capture Fields
+  // Patient, Scheme, Authorisation & Doctor Details
   const [patientFirstName, setPatientFirstName] = useState('');
   const [patientSurname, setPatientSurname] = useState('');
+  const [mainMemberName, setMainMemberName] = useState('');
+  const [patientIdNumber, setPatientIdNumber] = useState('');
+  const [patientDob, setPatientDob] = useState('');
+  const [postalAddress, setPostalAddress] = useState('');
+  const [medicalAidName, setMedicalAidName] = useState('');
+  const [medicalAidOption, setMedicalAidOption] = useState('');
+  const [medicalAidNumber, setMedicalAidNumber] = useState('');
+  const [dependentCode, setDependentCode] = useState('');
+  const [authorisationNumber, setAuthorisationNumber] = useState('');
+  const [patientCellphone, setPatientCellphone] = useState('');
+  const [facilityName, setFacilityName] = useState('');
   const [serviceDate, setServiceDate] = useState(() =>
     new Date().toISOString().split('T')[0]
   );
   const [referringSurgeon, setReferringSurgeon] = useState('');
+  const [surgeonPracticeNo, setSurgeonPracticeNo] = useState('');
+  const [referringDoctor, setReferringDoctor] = useState('');
+  const [procedurePerformed, setProcedurePerformed] = useState('');
+
+  // Start & End Time
   const [startTime, setStartTime] = useState('08:00');
   const [endTime, setEndTime] = useState('09:30');
 
-  // Procedure Codes + Custom Client Baskets State
+  // Procedure Codes + Custom Client Baskets
   const [procQuery, setProcQuery] = useState('');
   const [procCategory, setProcCategory] = useState<ProcCategoryFilter>('ALL');
   const [selectedTariffs, setSelectedTariffs] = useState<SelectedTariff[]>([]);
 
-  // Client-Created Custom Code Baskets (Saved per practitioner)
+  // Client-Created Custom Code Baskets
   const [customBaskets, setCustomBaskets] = useState<CustomCodeBasket[]>([]);
   const [basketBuilderOpen, setBasketBuilderOpen] = useState(false);
   const [editingBasketId, setEditingBasketId] = useState<string | null>(null);
@@ -211,6 +240,25 @@ export default function PractitionerCapturePage() {
   const [icdQuery, setIcdQuery] = useState('');
   const [icdDropdownOpen, setIcdDropdownOpen] = useState(false);
   const [selectedIcds, setSelectedIcds] = useState<Icd10Item[]>([]);
+
+  // Collapsible Perfusion, Cell-Saver & Consumables Log
+  const [perfusionOpen, setPerfusionOpen] = useState(false);
+  const [bloodLossMl, setBloodLossMl] = useState('');
+  const [cellSavedMl, setCellSavedMl] = useState('');
+  const [cellSavedHct, setCellSavedHct] = useState('');
+  const [hepsalineStrength, setHepsalineStrength] = useState<
+    '40 000' | '30 000' | '25 000' | ''
+  >('');
+  const [hepsalineQty, setHepsalineQty] = useState<number>(1);
+  const [consumables, setConsumables] = useState<ConsumableItemEntry[]>(() =>
+    DEFAULT_CONSUMABLES_TEMPLATE.map((c) => ({ ...c }))
+  );
+  const [customConsumableName, setCustomConsumableName] = useState('');
+  const [infusionFilters, setInfusionFilters] = useState<FilterItemEntry[]>(() =>
+    DEFAULT_FILTERS_TEMPLATE.map((f) => ({ ...f }))
+  );
+  const [bloodBankUnits, setBloodBankUnits] = useState<BloodBankUnitEntry[]>([]);
+  const [theatreSister, setTheatreSister] = useState('');
 
   // Notes & Feedback
   const [clinicalNotes, setClinicalNotes] = useState('');
@@ -244,6 +292,15 @@ export default function PractitionerCapturePage() {
     () => cases.filter((c) => c.status === 'QUERIED').length,
     [cases]
   );
+
+  // Auto-open Perfusion / Cell-Saver log if a cell-saver / CPB code is picked
+  useEffect(() => {
+    if (
+      selectedTariffs.some((t) => PERFUSION_TRIGGER_CODES.has(t.procedure_code))
+    ) {
+      setPerfusionOpen(true);
+    }
+  }, [selectedTariffs]);
 
   // Persist Custom Code Baskets per Practitioner
   const persistBaskets = useCallback(
@@ -302,7 +359,7 @@ export default function PractitionerCapturePage() {
     [supabase]
   );
 
-  // 1. Load optional JSON catalogues from /public/data/ (preserving category metadata)
+  // Load optional JSON catalogues from /public/data/
   useEffect(() => {
     let active = true;
 
@@ -371,7 +428,7 @@ export default function PractitionerCapturePage() {
     };
   }, []);
 
-  // 2. Authenticate User & Load Cases
+  // Authenticate User & Load Cases
   useEffect(() => {
     let active = true;
 
@@ -435,7 +492,7 @@ export default function PractitionerCapturePage() {
     };
   }, [fetchMyCases, router, supabase]);
 
-  // 3. Realtime Sync when Billing Office Queries or Bills a Case
+  // Realtime Sync
   useEffect(() => {
     if (!userId) return;
 
@@ -460,7 +517,7 @@ export default function PractitionerCapturePage() {
     };
   }, [fetchMyCases, supabase, userId]);
 
-  // Filtered Procedure List (Category + Search)
+  // Filtered Procedure List
   const visibleProcedures = useMemo(() => {
     const q = procQuery.trim().toLowerCase();
     return procedureCatalogue.filter((item) => {
@@ -475,7 +532,7 @@ export default function PractitionerCapturePage() {
     });
   }, [procedureCatalogue, procCategory, procQuery]);
 
-  // Filtered Codes for the Custom Basket Builder
+  // Filtered Codes for Custom Basket Builder
   const basketBuilderMatches = useMemo(() => {
     const q = basketCodeSearch.trim().toLowerCase();
     const inDraft = new Set(basketDraftItems.map((i) => i.procedure_code));
@@ -507,22 +564,32 @@ export default function PractitionerCapturePage() {
       .slice(0, 15);
   }, [icdCatalogue, icdQuery, selectedIcds]);
 
-  // Apply extracted OCR payload to form fields
+  // Apply extracted OCR payload to all form fields
   const applyOcrExtraction = useCallback((ocr: StickerOcrPayload) => {
     setOcrResult(ocr);
     if (ocr.patient_first_name) setPatientFirstName(ocr.patient_first_name);
     if (ocr.patient_surname) setPatientSurname(ocr.patient_surname);
+    if (ocr.main_member_name) setMainMemberName(ocr.main_member_name);
+    if (ocr.patient_id_number) setPatientIdNumber(ocr.patient_id_number);
+    if (ocr.patient_dob) setPatientDob(ocr.patient_dob);
+    if (ocr.postal_address) setPostalAddress(ocr.postal_address);
     if (ocr.medical_aid_name) setMedicalAidName(ocr.medical_aid_name);
+    if (ocr.medical_aid_option) setMedicalAidOption(ocr.medical_aid_option);
     if (ocr.medical_aid_number) setMedicalAidNumber(ocr.medical_aid_number);
     if (ocr.dependent_code) setDependentCode(ocr.dependent_code);
+    if (ocr.authorisation_number) setAuthorisationNumber(ocr.authorisation_number);
     if (ocr.patient_cellphone) setPatientCellphone(ocr.patient_cellphone);
     if (ocr.facility_name) setFacilityName(ocr.facility_name);
     if (ocr.referring_surgeon) {
       setReferringSurgeon((prev) => (prev.trim() ? prev : ocr.referring_surgeon));
     }
+    if (ocr.surgeon_practice_no) {
+      setSurgeonPracticeNo((prev) =>
+        prev.trim() ? prev : ocr.surgeon_practice_no
+      );
+    }
   }, []);
 
-  // Handlers: Sticker Photo + Automatic Compression & Vision OCR
   async function handleStickerSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const rawFile = e.target.files?.[0];
     if (!rawFile) return;
@@ -559,7 +626,7 @@ export default function PractitionerCapturePage() {
         const { compressedFile } = await compressStickerImage(rawFile);
         setStickerFile(compressedFile);
       } catch {
-        // Keep rawFile if canvas compression fails
+        // Keep rawFile
       }
       const msg =
         err instanceof Error
@@ -617,7 +684,37 @@ export default function PractitionerCapturePage() {
     setTimeout(() => setCopiedPmsId(null), 2000);
   }
 
-  // Load a QUERIED Case into the Form for Actionable Editing & Resubmission
+  function resetPatientAndPerfusionFields() {
+    setPatientFirstName('');
+    setPatientSurname('');
+    setMainMemberName('');
+    setPatientIdNumber('');
+    setPatientDob('');
+    setPostalAddress('');
+    setMedicalAidName('');
+    setMedicalAidOption('');
+    setMedicalAidNumber('');
+    setDependentCode('');
+    setAuthorisationNumber('');
+    setPatientCellphone('');
+    setFacilityName('');
+    setProcedurePerformed('');
+    setSelectedTariffs([]);
+    setSelectedIcds([]);
+    setBloodLossMl('');
+    setCellSavedMl('');
+    setCellSavedHct('');
+    setHepsalineStrength('');
+    setHepsalineQty(1);
+    setConsumables(DEFAULT_CONSUMABLES_TEMPLATE.map((c) => ({ ...c })));
+    setCustomConsumableName('');
+    setInfusionFilters(DEFAULT_FILTERS_TEMPLATE.map((f) => ({ ...f })));
+    setBloodBankUnits([]);
+    setTheatreSister('');
+    setClinicalNotes('');
+    clearSticker();
+  }
+
   function startEditingCase(
     record: CaseRecord,
     options?: { openStickerPicker?: boolean; focusReply?: boolean }
@@ -626,24 +723,31 @@ export default function PractitionerCapturePage() {
     setFormSuccess(null);
     clearSticker();
 
-    const parsedNotes = splitNotesAndResolution(record.clinical_notes);
+    const parsed = parseCaseNotesWithMetadata(record.clinical_notes);
+    const meta = parsed.metadata;
 
     setEditingCase(record);
     setExistingStickerPath(record.sticker_storage_path);
     setQueryReplyText('');
     setPatientFirstName(record.patient_first_name);
     setPatientSurname(record.patient_surname);
+    setMainMemberName(meta.mainMemberName || '');
+    setPatientIdNumber(meta.patientIdNumber || '');
+    setPatientDob(meta.patientDob || '');
+    setPostalAddress(meta.postalAddress || '');
     setMedicalAidName(
       record.medical_aid_name && record.medical_aid_name !== 'On Sticker'
         ? record.medical_aid_name
         : ''
     );
+    setMedicalAidOption(meta.medicalAidOption || '');
     setMedicalAidNumber(
       record.medical_aid_number && record.medical_aid_number !== 'On Sticker'
         ? record.medical_aid_number
         : ''
     );
     setDependentCode(record.dependent_code || '');
+    setAuthorisationNumber(meta.authorisationNumber || '');
     setPatientCellphone(record.patient_cellphone || '');
     setFacilityName(
       record.facility_name && record.facility_name !== 'On Sticker'
@@ -652,6 +756,9 @@ export default function PractitionerCapturePage() {
     );
     setServiceDate(record.service_date);
     setReferringSurgeon(record.referring_surgeon);
+    setSurgeonPracticeNo(meta.surgeonPracticeNo || '');
+    setReferringDoctor(meta.referringDoctor || '');
+    setProcedurePerformed(meta.procedurePerformed || '');
     setStartTime(record.start_time?.slice(0, 5) || '08:00');
     setEndTime(record.end_time?.slice(0, 5) || '09:30');
     setSelectedTariffs(Array.isArray(record.tariffs) ? record.tariffs : []);
@@ -661,18 +768,39 @@ export default function PractitionerCapturePage() {
       ...(Array.isArray(record.secondary_icd10) ? record.secondary_icd10 : []),
     ];
     setSelectedIcds(rebuiltIcds);
-    setClinicalNotes(parsedNotes.baseNotes);
+
+    setBloodLossMl(meta.bloodLossMl || '');
+    setCellSavedMl(meta.cellSavedMl || '');
+    setCellSavedHct(meta.cellSavedHct || '');
+    setHepsalineStrength(meta.hepsalineStrength || '');
+    setHepsalineQty(meta.hepsalineQty || 1);
+
+    const mergedConsumables = DEFAULT_CONSUMABLES_TEMPLATE.map((tpl) => {
+      const found = meta.consumables?.find((c) => c.name === tpl.name);
+      return found ? { ...found } : { ...tpl };
+    });
+    for (const c of meta.consumables || []) {
+      if (!mergedConsumables.some((m) => m.name === c.name)) {
+        mergedConsumables.push({ ...c });
+      }
+    }
+    setConsumables(mergedConsumables);
+
+    const mergedFilters = DEFAULT_FILTERS_TEMPLATE.map((tpl) => {
+      const found = meta.infusionFilters?.find((f) => f.type === tpl.type);
+      return found ? { ...found } : { ...tpl };
+    });
+    setInfusionFilters(mergedFilters);
+    setBloodBankUnits(meta.bloodBankUnits ? [...meta.bloodBankUnits] : []);
+    setTheatreSister(meta.theatreSister || '');
+    setClinicalNotes(parsed.baseNotes);
 
     formTopRef.current?.scrollIntoView({ behavior: 'smooth' });
 
     if (options?.openStickerPicker) {
-      setTimeout(() => {
-        fileInputRef.current?.click();
-      }, 200);
+      setTimeout(() => fileInputRef.current?.click(), 200);
     } else if (options?.focusReply) {
-      setTimeout(() => {
-        queryReplyInputRef.current?.focus();
-      }, 250);
+      setTimeout(() => queryReplyInputRef.current?.focus(), 250);
     }
   }
 
@@ -680,21 +808,10 @@ export default function PractitionerCapturePage() {
     setEditingCase(null);
     setExistingStickerPath(null);
     setQueryReplyText('');
-    setPatientFirstName('');
-    setPatientSurname('');
-    setMedicalAidName('');
-    setMedicalAidNumber('');
-    setDependentCode('');
-    setPatientCellphone('');
-    setFacilityName('');
-    setSelectedTariffs([]);
-    setSelectedIcds([]);
-    setClinicalNotes('');
-    clearSticker();
+    resetPatientAndPerfusionFields();
     setFormError(null);
   }
 
-  // Apply Guardrail Quick Fix
   function applyGuardrailFix(code: string, units = 1) {
     const existing = selectedTariffs.find((t) => t.procedure_code === code);
     if (existing) {
@@ -710,22 +827,18 @@ export default function PractitionerCapturePage() {
     setSelectedTariffs((prev) => [...prev, { ...found, units }]);
   }
 
-  // Handlers: Procedure Codes & QTY
   function toggleOrAddProcedureCode(item: ProcedureItem) {
     const existing = selectedTariffs.find(
       (t) => t.procedure_code === item.procedure_code
     );
     if (existing) {
-      // Increment QTY if already selected so tapping feels fast
       updateTariffUnits(item.procedure_code, existing.units + 1);
       return;
     }
 
-    const isExtra30MinCode = ALL_TIME_ADDON_CODES.has(item.procedure_code);
-    const defaultUnits =
-      isExtra30MinCode && timing.extraThirtyMinAfterFirstHour > 0
-        ? timing.extraThirtyMinAfterFirstHour
-        : 1;
+    const isExtraTimeCode = ALL_TIME_ADDON_CODES.has(item.procedure_code);
+    const expected = getExpectedAddonUnits(item.procedure_code, timing);
+    const defaultUnits = isExtraTimeCode && expected > 0 ? expected : 1;
 
     setSelectedTariffs((prev) => [...prev, { ...item, units: defaultUnits }]);
   }
@@ -767,16 +880,15 @@ export default function PractitionerCapturePage() {
     setSelectedTariffs((prev) => prev.filter((item) => item.procedure_code !== code));
   }
 
-  // Handlers: Custom Client Code Baskets
+  // Custom Client Code Baskets
   function applyCustomBasket(basket: CustomCodeBasket) {
     setSelectedTariffs((prev) => {
       const map = new Map(prev.map((t) => [t.procedure_code, t]));
       for (const item of basket.items) {
-        const isExtra30MinCode = ALL_TIME_ADDON_CODES.has(item.procedure_code);
+        const isExtraTimeCode = ALL_TIME_ADDON_CODES.has(item.procedure_code);
+        const expected = getExpectedAddonUnits(item.procedure_code, timing);
         const resolvedUnits =
-          isExtra30MinCode && timing.extraThirtyMinAfterFirstHour > 0
-            ? timing.extraThirtyMinAfterFirstHour
-            : item.units;
+          isExtraTimeCode && expected > 0 ? expected : item.units;
         map.set(item.procedure_code, { ...item, units: resolvedUnits });
       }
       return Array.from(map.values());
@@ -889,7 +1001,7 @@ export default function PractitionerCapturePage() {
     persistBaskets(customBaskets.filter((b) => b.id !== id));
   }
 
-  // Handlers: Multi-Select ICD-10
+  // Multi-Select ICD-10
   function addIcdCode(item: Icd10Item) {
     if (selectedIcds.some((existing) => existing.code === item.code)) return;
     setSelectedIcds((prev) => [...prev, item]);
@@ -907,6 +1019,81 @@ export default function PractitionerCapturePage() {
       if (!target) return prev;
       return [target, ...prev.filter((item) => item.code !== code)];
     });
+  }
+
+  // Consumables, Filters & Blood Bank Handlers
+  function updateConsumableRow(
+    idx: number,
+    patch: Partial<ConsumableItemEntry>
+  ) {
+    setConsumables((prev) =>
+      prev.map((row, i) =>
+        i === idx
+          ? {
+              ...row,
+              ...patch,
+              qty:
+                patch.qty !== undefined
+                  ? Math.max(0, Math.min(99, Math.floor(patch.qty) || 0))
+                  : row.qty,
+            }
+          : row
+      )
+    );
+  }
+
+  function addCustomConsumableRow() {
+    const name = customConsumableName.trim();
+    if (!name) return;
+    setConsumables((prev) => [...prev, { name, qty: 1, expiryDate: '' }]);
+    setCustomConsumableName('');
+  }
+
+  function updateFilterQty(idx: number, nextQty: number) {
+    const clamped = Math.max(0, Math.min(99, Math.floor(nextQty) || 0));
+    setInfusionFilters((prev) =>
+      prev.map((f, i) => (i === idx ? { ...f, qty: clamped } : f))
+    );
+  }
+
+  function addBloodBankRow() {
+    setBloodBankUnits((prev) => [...prev, { bloodType: '', unitNumber: '' }]);
+  }
+
+  function updateBloodBankRow(
+    idx: number,
+    patch: Partial<BloodBankUnitEntry>
+  ) {
+    setBloodBankUnits((prev) =>
+      prev.map((b, i) => (i === idx ? { ...b, ...patch } : b))
+    );
+  }
+
+  function removeBloodBankRow(idx: number) {
+    setBloodBankUnits((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function buildCurrentMetadata(): PerfusionCaseMetadata {
+    return {
+      mainMemberName,
+      medicalAidOption,
+      patientIdNumber,
+      patientDob,
+      postalAddress,
+      authorisationNumber,
+      surgeonPracticeNo,
+      referringDoctor,
+      procedurePerformed,
+      bloodLossMl,
+      cellSavedMl,
+      cellSavedHct,
+      hepsalineStrength,
+      hepsalineQty,
+      consumables,
+      infusionFilters,
+      bloodBankUnits,
+      theatreSister,
+    };
   }
 
   // Submit New Case OR Resubmit Queried Case
@@ -975,9 +1162,12 @@ export default function PractitionerCapturePage() {
       const resolvedDepCode = dependentCode.trim() || '00';
       const resolvedCell = patientCellphone.trim() || null;
       const resolvedFacility = facilityName.trim() || 'On Sticker';
+      const currentMetadata = buildCurrentMetadata();
 
       if (editingCase) {
-        const priorParsed = splitNotesAndResolution(editingCase.clinical_notes);
+        const priorParsed = parseCaseNotesWithMetadata(
+          editingCase.clinical_notes
+        );
         const combinedReplies = [...priorParsed.resolutionReplies];
 
         if (queryReplyText.trim()) {
@@ -986,15 +1176,11 @@ export default function PractitionerCapturePage() {
           combinedReplies.push('Uploaded updated hospital sticker photo');
         }
 
-        const formattedNotesParts: string[] = [];
-        if (clinicalNotes.trim()) {
-          formattedNotesParts.push(clinicalNotes.trim());
-        }
-        for (const r of combinedReplies) {
-          formattedNotesParts.push(`[Query Reply: ${r}]`);
-        }
-        const finalClinicalNotes =
-          formattedNotesParts.length > 0 ? formattedNotesParts.join('\n') : null;
+        const finalClinicalNotes = serializeCaseNotesWithMetadata({
+          plainNotes: clinicalNotes,
+          resolutionReplies: combinedReplies,
+          metadata: currentMetadata,
+        });
 
         const { error: updateError } = await supabase
           .from('cases')
@@ -1045,17 +1231,7 @@ export default function PractitionerCapturePage() {
         setEditingCase(null);
         setExistingStickerPath(null);
         setQueryReplyText('');
-        setPatientFirstName('');
-        setPatientSurname('');
-        setMedicalAidName('');
-        setMedicalAidNumber('');
-        setDependentCode('');
-        setPatientCellphone('');
-        setFacilityName('');
-        setSelectedTariffs([]);
-        setSelectedIcds([]);
-        setClinicalNotes('');
-        clearSticker();
+        resetPatientAndPerfusionFields();
 
         setFormSuccess(
           `Case ${resolvedRef} updated and resubmitted to the Medical Bureau.`
@@ -1064,7 +1240,12 @@ export default function PractitionerCapturePage() {
         return;
       }
 
-      // Insert brand-new case linked to active licence & Medical Bureau
+      const finalClinicalNotes = serializeCaseNotesWithMetadata({
+        plainNotes: clinicalNotes,
+        resolutionReplies: [],
+        metadata: currentMetadata,
+      });
+
       const { data: insertedCase, error: insertError } = await supabase
         .from('cases')
         .insert({
@@ -1089,7 +1270,7 @@ export default function PractitionerCapturePage() {
           primary_icd10_desc: primaryIcd.description,
           secondary_icd10: secondaryIcds,
           tariffs: selectedTariffs,
-          clinical_notes: clinicalNotes.trim() || null,
+          clinical_notes: finalClinicalNotes,
           validation_status: 'CLEARED',
           status: 'SUBMITTED',
         })
@@ -1115,18 +1296,8 @@ export default function PractitionerCapturePage() {
         });
       }
 
-      // Reset patient fields while keeping Surgeon & Service Date sticky
-      setPatientFirstName('');
-      setPatientSurname('');
-      setMedicalAidName('');
-      setMedicalAidNumber('');
-      setDependentCode('');
-      setPatientCellphone('');
-      setFacilityName('');
-      setSelectedTariffs([]);
-      setSelectedIcds([]);
-      setClinicalNotes('');
-      clearSticker();
+      // Reset patient & consumable fields while keeping Surgeon, Surgeon Prac No & Service Date sticky
+      resetPatientAndPerfusionFields();
 
       setFormSuccess(
         `Case ${insertedCase?.case_ref ?? ''} submitted to Medical Bureau. Ready for next patient.`
@@ -1199,7 +1370,6 @@ export default function PractitionerCapturePage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-        {/* Discreet Floating Subscription / Key Pill & Closeable Modal */}
         <LicenseBanner entitlement={entitlement} />
 
         {/* Queried Cases Action Banner */}
@@ -1263,7 +1433,7 @@ export default function PractitionerCapturePage() {
                 type="text"
                 value={queryReplyText}
                 onChange={(e) => setQueryReplyText(e.target.value)}
-                placeholder="e.g. Uploaded clearer sticker — member no 10492811, dep 01 / confirmed emergency callout"
+                placeholder="e.g. Uploaded clearer sticker — member no 075311300, dep 00"
                 className="w-full h-11 px-3.5 rounded-xl bg-[#090B0E] border border-amber-400/50 focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#6A7689]"
               />
             </div>
@@ -1363,10 +1533,10 @@ export default function PractitionerCapturePage() {
                 <span className="text-sm font-semibold text-white">
                   {existingStickerPath
                     ? 'Tap to Upload Replacement Hospital Sticker'
-                    : 'Tap to Snap Hospital Sticker (Auto-Fills Patient & Scheme)'}
+                    : 'Tap to Snap Hospital Sticker (Auto-Fills Patient, ID, Scheme & Auth)'}
                 </span>
                 <span className="text-xs text-[#8B98AB]">
-                  Extracts Name, Surname, Medical Aid, Member #, Dep Code &amp; Cellphone automatically
+                  Extracts Name, Surname, ID #, DOB, Main Member, Medical Aid, Plan, Auth #, Address &amp; Surgeon Prac #
                 </span>
               </button>
             ) : (
@@ -1429,89 +1599,21 @@ export default function PractitionerCapturePage() {
                     {ocrNotice}
                   </div>
                 )}
-
-                {/* Extracted Medical Scheme & Facility Strip */}
-                {(medicalAidName ||
-                  medicalAidNumber ||
-                  patientCellphone ||
-                  facilityName) && (
-                  <div className="rounded-xl border border-[#00D2C6]/30 bg-[#0E1218] p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-                    <div>
-                      <span className="block font-mono text-[10px] uppercase text-[#8B98AB]">
-                        Medical Aid
-                      </span>
-                      <input
-                        type="text"
-                        value={medicalAidName}
-                        onChange={(e) => setMedicalAidName(e.target.value)}
-                        placeholder="Scheme"
-                        className="mt-0.5 w-full bg-transparent font-semibold text-white focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
-                      />
-                    </div>
-                    <div>
-                      <span className="block font-mono text-[10px] uppercase text-[#8B98AB]">
-                        Member # / Dep
-                      </span>
-                      <div className="mt-0.5 flex items-center gap-1 font-mono font-semibold text-[#00D2C6]">
-                        <input
-                          type="text"
-                          value={medicalAidNumber}
-                          onChange={(e) => setMedicalAidNumber(e.target.value)}
-                          placeholder="Member No"
-                          className="w-24 bg-transparent focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
-                        />
-                        <span>-</span>
-                        <input
-                          type="text"
-                          value={dependentCode}
-                          onChange={(e) => setDependentCode(e.target.value)}
-                          placeholder="00"
-                          className="w-8 bg-transparent focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <span className="flex items-center gap-1 font-mono text-[10px] uppercase text-[#8B98AB]">
-                        <Phone className="w-2.5 h-2.5" />
-                        Cellphone
-                      </span>
-                      <input
-                        type="text"
-                        value={patientCellphone}
-                        onChange={(e) => setPatientCellphone(e.target.value)}
-                        placeholder="082..."
-                        className="mt-0.5 w-full bg-transparent font-mono text-white focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
-                      />
-                    </div>
-                    <div>
-                      <span className="flex items-center gap-1 font-mono text-[10px] uppercase text-[#8B98AB]">
-                        <Building2 className="w-2.5 h-2.5" />
-                        Facility
-                      </span>
-                      <input
-                        type="text"
-                        value={facilityName}
-                        onChange={(e) => setFacilityName(e.target.value)}
-                        placeholder="Hospital"
-                        className="mt-0.5 w-full bg-transparent text-white truncate focus:outline-none border-b border-transparent focus:border-[#00D2C6]"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </section>
 
-          {/* 2. Patient Name, Surname, Service Date & Surgeon */}
+          {/* 2. Patient, Scheme, Authorisation & Doctor Details */}
           <section className="bg-[#14181F] border border-[#232B38] rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex items-center gap-2.5">
               <User className="w-4 h-4 text-[#00D2C6]" />
               <h2 className="font-[family-name:var(--font-montserrat)] font-bold text-sm uppercase tracking-wider text-white">
-                2. Patient &amp; Case Details
+                2. Patient, Scheme &amp; Case Details
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Row 1: Patient Name, Surname, ID Number, DOB */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               <div>
                 <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
                   Name *
@@ -1521,7 +1623,7 @@ export default function PractitionerCapturePage() {
                   required
                   value={patientFirstName}
                   onChange={(e) => setPatientFirstName(e.target.value)}
-                  placeholder="e.g. Johan"
+                  placeholder="e.g. Fritz C"
                   className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
                 />
               </div>
@@ -1535,11 +1637,160 @@ export default function PractitionerCapturePage() {
                   required
                   value={patientSurname}
                   onChange={(e) => setPatientSurname(e.target.value)}
-                  placeholder="e.g. Van Der Merwe"
+                  placeholder="e.g. Relling"
                   className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
                 />
               </div>
 
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  ID Number
+                </label>
+                <input
+                  type="text"
+                  value={patientIdNumber}
+                  onChange={(e) => setPatientIdNumber(e.target.value)}
+                  placeholder="13-digit SA ID"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  Date of Birth
+                </label>
+                <input
+                  type="date"
+                  value={patientDob}
+                  onChange={(e) => setPatientDob(e.target.value)}
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-white"
+                />
+              </div>
+            </div>
+
+            {/* Row 2: Main Member, Medical Aid, Option/Plan, Member # / Dep */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  Main Member
+                </label>
+                <input
+                  type="text"
+                  value={mainMemberName}
+                  onChange={(e) => setMainMemberName(e.target.value)}
+                  placeholder="e.g. Mr FC Relling"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  Medical Aid
+                </label>
+                <input
+                  type="text"
+                  value={medicalAidName}
+                  onChange={(e) => setMedicalAidName(e.target.value)}
+                  placeholder="e.g. Discovery"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  Option / Plan
+                </label>
+                <input
+                  type="text"
+                  value={medicalAidOption}
+                  onChange={(e) => setMedicalAidOption(e.target.value)}
+                  placeholder="e.g. Classic Saver"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  Member No. &amp; Dep
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={medicalAidNumber}
+                    onChange={(e) => setMedicalAidNumber(e.target.value)}
+                    placeholder="075311300"
+                    className="flex-1 min-w-0 h-11 px-3 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-white placeholder-[#4E5B6E]"
+                  />
+                  <input
+                    type="text"
+                    value={dependentCode}
+                    onChange={(e) => setDependentCode(e.target.value)}
+                    placeholder="00"
+                    className="w-14 h-11 px-2 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-center text-white placeholder-[#4E5B6E]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3: Authorisation No, Cellphone, Clinic/Hospital, Postal Address */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#00D2C6] mb-1.5">
+                  Authorisation No.
+                </label>
+                <input
+                  type="text"
+                  value={authorisationNumber}
+                  onChange={(e) => setAuthorisationNumber(e.target.value)}
+                  placeholder="e.g. 33993981"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1 text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  <Phone className="w-3 h-3" />
+                  <span>Cellphone</span>
+                </label>
+                <input
+                  type="text"
+                  value={patientCellphone}
+                  onChange={(e) => setPatientCellphone(e.target.value)}
+                  placeholder="e.g. 0816329160"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1 text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  <Building2 className="w-3 h-3" />
+                  <span>Clinic / Hospital</span>
+                </label>
+                <input
+                  type="text"
+                  value={facilityName}
+                  onChange={(e) => setFacilityName(e.target.value)}
+                  placeholder="e.g. Morningside / Lenmed"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  Postal Address
+                </label>
+                <input
+                  type="text"
+                  value={postalAddress}
+                  onChange={(e) => setPostalAddress(e.target.value)}
+                  placeholder="Street, Suburb, Code"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+            </div>
+
+            {/* Row 4: Service Date, Surgeon, Surgeon Prac No, Referring Doctor */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1 border-t border-[#1E2530]">
               <div>
                 <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
                   Service Date *
@@ -1555,17 +1806,57 @@ export default function PractitionerCapturePage() {
 
               <div>
                 <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
-                  Surgeon *
+                  Surgeon / Doctor *
                 </label>
                 <input
                   type="text"
                   required
                   value={referringSurgeon}
                   onChange={(e) => setReferringSurgeon(e.target.value)}
-                  placeholder="e.g. Dr. K. Naidoo"
+                  placeholder="e.g. Dr RD Kyte"
                   className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
                 />
               </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  Doctor Pract. No.
+                </label>
+                <input
+                  type="text"
+                  value={surgeonPracticeNo}
+                  onChange={(e) => setSurgeonPracticeNo(e.target.value)}
+                  placeholder="e.g. 0157996"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                  Referring Doctor
+                </label>
+                <input
+                  type="text"
+                  value={referringDoctor}
+                  onChange={(e) => setReferringDoctor(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+                />
+              </div>
+            </div>
+
+            {/* Row 5: Surgical Procedure / Operation Performed */}
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                Surgical Procedure / Operation Performed
+              </label>
+              <input
+                type="text"
+                value={procedurePerformed}
+                onChange={(e) => setProcedurePerformed(e.target.value)}
+                placeholder="e.g. Debridement Left Femur + Plate Removal / Hysterectomy / CABG"
+                className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+              />
             </div>
           </section>
 
@@ -1575,7 +1866,7 @@ export default function PractitionerCapturePage() {
               <div className="flex items-center gap-2.5">
                 <Clock className="w-4 h-4 text-[#00D2C6]" />
                 <h2 className="font-[family-name:var(--font-montserrat)] font-bold text-sm uppercase tracking-wider text-white">
-                  3. Start &amp; End Time
+                  3. Procedure Duration (Start &amp; End Time)
                 </h2>
               </div>
 
@@ -1671,7 +1962,7 @@ export default function PractitionerCapturePage() {
                     setIcdQuery(e.target.value);
                     setIcdDropdownOpen(true);
                   }}
-                  placeholder="Search ICD-10 code or diagnosis (e.g. I25.1, I35.0, N17.9, J80, atrial, renal)..."
+                  placeholder="Search ICD-10 code or diagnosis (e.g. I25.1, M00.06, D26.9, N17.9)..."
                   className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
                 />
                 {icdQuery && (
@@ -1780,7 +2071,7 @@ export default function PractitionerCapturePage() {
             )}
           </section>
 
-          {/* 5. Tariff Codes, Custom Client Baskets & QTY Selector */}
+          {/* 5. Tariff Codes (106 Codes), Custom Client Baskets & QTY Selector */}
           <section className="bg-[#14181F] border border-[#232B38] rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
@@ -1816,14 +2107,13 @@ export default function PractitionerCapturePage() {
               </div>
             </div>
 
-            {/* Quick-Save Current Selection Popover */}
             {quickSaveModalOpen && (
               <div className="p-3.5 rounded-xl bg-[#0E1218] border border-[#00D2C6]/45 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
                 <input
                   type="text"
                   value={quickSaveName}
                   onChange={(e) => setQuickSaveName(e.target.value)}
-                  placeholder="Basket name (e.g. My Bypass Setup / ICU Dialysis)..."
+                  placeholder="Basket name (e.g. Cell-Saver Standard 75029+75145+75149)..."
                   className="flex-1 h-10 px-3 rounded-lg bg-[#14181F] border border-[#2C3545] focus:border-[#00D2C6] focus:outline-none text-xs text-white placeholder-[#4E5B6E]"
                 />
                 <div className="flex items-center gap-2">
@@ -1900,7 +2190,7 @@ export default function PractitionerCapturePage() {
             ) : (
               <div className="px-3.5 py-2.5 rounded-xl bg-[#0E1218] border border-dashed border-[#2C3545] flex flex-wrap items-center justify-between gap-2 text-xs text-[#8B98AB]">
                 <span>
-                  No custom code baskets yet. Create reusable bundles with your preferred codes &amp; quantities.
+                  Create reusable code baskets with your go-to codes &amp; quantities (e.g. 75029 + 75145 + 75149).
                 </span>
                 <button
                   type="button"
@@ -1932,7 +2222,7 @@ export default function PractitionerCapturePage() {
                   type="text"
                   value={basketNameInput}
                   onChange={(e) => setBasketNameInput(e.target.value)}
-                  placeholder="Basket Name (e.g. Perfusion Standard, Cath Lab Stent, ICU 75149)..."
+                  placeholder="Basket Name (e.g. Cell-Saver Standard, Bypass + IABP)..."
                   className="w-full h-10 px-3.5 rounded-xl bg-[#14181F] border border-[#2C3545] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
                 />
 
@@ -1942,12 +2232,11 @@ export default function PractitionerCapturePage() {
                     type="text"
                     value={basketCodeSearch}
                     onChange={(e) => setBasketCodeSearch(e.target.value)}
-                    placeholder="Search code to add to basket (e.g. 75011, 75063, 75149)..."
+                    placeholder="Search code to add to basket (e.g. 75029, 75145, 75149)..."
                     className="w-full h-10 pl-9 pr-3 rounded-xl bg-[#14181F] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-xs text-white placeholder-[#4E5B6E]"
                   />
                 </div>
 
-                {/* Quick search matches inside Basket Builder */}
                 <div className="max-h-36 overflow-y-auto rounded-xl bg-[#14181F] border border-[#232B38] divide-y divide-[#1D2430]">
                   {basketBuilderMatches.length === 0 ? (
                     <div className="p-2.5 flex items-center justify-between text-xs text-[#8B98AB]">
@@ -1984,7 +2273,6 @@ export default function PractitionerCapturePage() {
                   )}
                 </div>
 
-                {/* Codes inside Draft Basket with Default QTY */}
                 {basketDraftItems.length > 0 && (
                   <div className="space-y-2">
                     <span className="block font-mono text-[10px] uppercase tracking-wider text-[#8B98AB]">
@@ -2087,7 +2375,7 @@ export default function PractitionerCapturePage() {
                   type="text"
                   value={procQuery}
                   onChange={(e) => setProcQuery(e.target.value)}
-                  placeholder="Filter by code or keyword (e.g. 75011, 75063, 75149, pacemaker, balloon, echo)..."
+                  placeholder="Filter 106 codes by tariff or keyword (e.g. 75029, 75145, 75149, 75017, balloon, cath)..."
                   className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
                 />
                 {procQuery && (
@@ -2102,7 +2390,7 @@ export default function PractitionerCapturePage() {
               </div>
 
               {/* Visible One-Tap Code Picker List */}
-              <div className="max-h-60 overflow-y-auto rounded-xl bg-[#0E1218] border border-[#232B38] divide-y divide-[#1A202B]">
+              <div className="max-h-64 overflow-y-auto rounded-xl bg-[#0E1218] border border-[#232B38] divide-y divide-[#1A202B]">
                 {visibleProcedures.length === 0 ? (
                   <div className="p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs text-[#8B98AB]">
                     <span>No matching tariff code in list.</span>
@@ -2113,7 +2401,9 @@ export default function PractitionerCapturePage() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00D2C6] text-[#08080B] font-mono font-bold"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>Add Custom Code &ldquo;{procQuery.trim().toUpperCase()}&rdquo;</span>
+                        <span>
+                          Add Custom Code &ldquo;{procQuery.trim().toUpperCase()}&rdquo;
+                        </span>
                       </button>
                     )}
                   </div>
@@ -2233,6 +2523,10 @@ export default function PractitionerCapturePage() {
                   const isTimeAddon = ALL_TIME_ADDON_CODES.has(
                     tariff.procedure_code
                   );
+                  const expectedUnits = getExpectedAddonUnits(
+                    tariff.procedure_code,
+                    timing
+                  );
                   const isQtyHighlight = QTY_HIGHLIGHT_CODES.has(
                     tariff.procedure_code
                   );
@@ -2252,23 +2546,21 @@ export default function PractitionerCapturePage() {
                               SET QTY / HOURS
                             </span>
                           )}
-                          {isTimeAddon &&
-                            timing.extraThirtyMinAfterFirstHour > 0 && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateTariffUnits(
-                                    tariff.procedure_code,
-                                    timing.extraThirtyMinAfterFirstHour
-                                  )
-                                }
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#1D7AFC]/20 text-[#7FB3FF] text-[10px] font-mono hover:bg-[#1D7AFC]/30"
-                              >
-                                <Sparkles className="w-3 h-3" />
-                                Sync {timing.extraThirtyMinAfterFirstHour} time
-                                units
-                              </button>
-                            )}
+                          {isTimeAddon && expectedUnits > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateTariffUnits(
+                                  tariff.procedure_code,
+                                  expectedUnits
+                                )
+                              }
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#1D7AFC]/20 text-[#7FB3FF] text-[10px] font-mono hover:bg-[#1D7AFC]/30"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              Sync {expectedUnits} time units
+                            </button>
+                          )}
                         </div>
                         <p className="text-xs text-[#C5D0DF] leading-relaxed">
                           {tariff.procedure_description}
@@ -2278,7 +2570,7 @@ export default function PractitionerCapturePage() {
                       <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
                         {isQtyHighlight && (
                           <div className="flex items-center gap-1 mr-1">
-                            {[1, 2, 3, 4].map((q) => (
+                            {[1, 2, 3, 4, 6].map((q) => (
                               <button
                                 key={q}
                                 type="button"
@@ -2359,12 +2651,327 @@ export default function PractitionerCapturePage() {
             )}
           </section>
 
-          {/* 6. Notes & Submit */}
+          {/* 6. Collapsible Perfusion, Cell-Saver & Consumables Log */}
+          <section className="bg-[#14181F] border border-[#232B38] rounded-2xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setPerfusionOpen((prev) => !prev)}
+              className="w-full p-5 sm:px-6 flex items-center justify-between gap-3 text-left hover:bg-[#181D26] transition"
+            >
+              <div className="flex items-center gap-2.5">
+                <Droplets className="w-4 h-4 text-[#00D2C6]" />
+                <div>
+                  <h2 className="font-[family-name:var(--font-montserrat)] font-bold text-sm uppercase tracking-wider text-white">
+                    6. Cell-Saver, Consumables &amp; Blood Log (Optional)
+                  </h2>
+                  <p className="text-xs text-[#8B98AB]">
+                    Blood loss / cell-saved ml, Hepsaline, TX kits + expiry dates, infusion filters &amp; blood bank units
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0E1218] border border-[#2C3545] font-mono text-[11px] font-bold text-[#00D2C6]">
+                <span>{perfusionOpen ? 'Hide' : 'Expand'}</span>
+                {perfusionOpen ? (
+                  <ChevronUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                )}
+              </span>
+            </button>
+
+            {perfusionOpen && (
+              <div className="px-5 sm:px-6 pb-6 pt-2 border-t border-[#232B38] space-y-5">
+                {/* Blood Loss, Cell-Saved Volume & Hct % */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                      Blood Loss (ml)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={bloodLossMl}
+                      onChange={(e) => setBloodLossMl(e.target.value)}
+                      placeholder="e.g. 700"
+                      className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-white placeholder-[#4E5B6E]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                      Cell-Saved Volume (ml)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={cellSavedMl}
+                      onChange={(e) => setCellSavedMl(e.target.value)}
+                      placeholder="e.g. 519"
+                      className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-white placeholder-[#4E5B6E]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                      Cell-Saved Hct (%)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={cellSavedHct}
+                      onChange={(e) => setCellSavedHct(e.target.value)}
+                      placeholder="e.g. 30"
+                      className="w-full h-11 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-white placeholder-[#4E5B6E]"
+                    />
+                  </div>
+                </div>
+
+                {/* Hepsaline Used for Reservoir Anticoagulation */}
+                <div className="space-y-2">
+                  <span className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB]">
+                    Hepsaline Used for Reservoir Anticoagulation (Units in 1L)
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(['40 000', '30 000', '25 000'] as const).map((strength) => {
+                      const active = hepsalineStrength === strength;
+                      return (
+                        <button
+                          key={strength}
+                          type="button"
+                          onClick={() =>
+                            setHepsalineStrength(active ? '' : strength)
+                          }
+                          className={`px-3.5 py-2 rounded-xl font-mono text-xs font-bold border transition ${
+                            active
+                              ? 'bg-[#00D2C6] text-[#08080B] border-[#00D2C6]'
+                              : 'bg-[#0E1218] text-[#C5D0DF] border-[#232B38] hover:border-[#00D2C6]/50'
+                          }`}
+                        >
+                          {strength} IU
+                        </button>
+                      );
+                    })}
+
+                    {hepsalineStrength && (
+                      <div className="inline-flex items-center gap-2 ml-2 px-3 py-1.5 rounded-xl bg-[#0E1218] border border-[#2C3545]">
+                        <span className="font-mono text-[11px] text-[#8B98AB]">
+                          Amount Used:
+                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={hepsalineQty}
+                          onChange={(e) =>
+                            setHepsalineQty(Math.max(1, Number(e.target.value) || 1))
+                          }
+                          className="w-12 bg-transparent font-mono text-xs font-bold text-center text-white focus:outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cell-Saver Consumables Used + Expiry Date */}
+                <div className="space-y-2">
+                  <span className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB]">
+                    Cell-Saver Consumables Used (Amount &amp; Expiry Date)
+                  </span>
+                  <div className="space-y-2">
+                    {consumables.map((item, idx) => (
+                      <div
+                        key={`${item.name}-${idx}`}
+                        className="p-2.5 rounded-xl bg-[#0E1218] border border-[#232B38] flex flex-wrap items-center justify-between gap-2.5"
+                      >
+                        <span className="font-mono text-xs font-bold text-white min-w-[130px]">
+                          {item.name}
+                        </span>
+
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <div className="inline-flex items-center rounded-lg bg-[#14181F] border border-[#2C3545]">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateConsumableRow(idx, { qty: item.qty - 1 })
+                              }
+                              className="w-7 h-8 flex items-center justify-center text-[#C5D0DF] hover:text-white"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-8 text-center font-mono text-xs font-bold text-[#00D2C6]">
+                              {item.qty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateConsumableRow(idx, { qty: item.qty + 1 })
+                              }
+                              className="w-7 h-8 flex items-center justify-center text-[#C5D0DF] hover:text-white"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[10px] uppercase text-[#8B98AB]">
+                              Expiry:
+                            </span>
+                            <input
+                              type="date"
+                              value={item.expiryDate || ''}
+                              onChange={(e) =>
+                                updateConsumableRow(idx, {
+                                  expiryDate: e.target.value,
+                                })
+                              }
+                              className="h-8 px-2.5 rounded-lg bg-[#14181F] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none font-mono text-xs text-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={customConsumableName}
+                        onChange={(e) => setCustomConsumableName(e.target.value)}
+                        placeholder="Add extra consumable (e.g. Aspiration Line / Bowl)..."
+                        className="flex-1 h-9 px-3 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-xs text-white placeholder-[#4E5B6E]"
+                      />
+                      <button
+                        type="button"
+                        disabled={!customConsumableName.trim()}
+                        onClick={addCustomConsumableRow}
+                        className="px-3 h-9 rounded-xl bg-[#1B212B] hover:bg-[#232B38] disabled:opacity-40 font-mono text-xs font-bold text-[#00D2C6]"
+                      >
+                        + Add Item
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Infusion Filters */}
+                <div className="space-y-2">
+                  <span className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB]">
+                    Filter Used for Infusion
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {infusionFilters.map((f, idx) => (
+                      <div
+                        key={f.type}
+                        className="p-2.5 rounded-xl bg-[#0E1218] border border-[#232B38] flex items-center justify-between gap-2"
+                      >
+                        <span className="font-mono text-xs font-bold text-white">
+                          {f.type}
+                        </span>
+                        <div className="inline-flex items-center rounded-lg bg-[#14181F] border border-[#2C3545]">
+                          <button
+                            type="button"
+                            onClick={() => updateFilterQty(idx, f.qty - 1)}
+                            className="w-6 h-7 flex items-center justify-center text-[#C5D0DF] hover:text-white"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-6 text-center font-mono text-xs font-bold text-[#00D2C6]">
+                            {f.qty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateFilterQty(idx, f.qty + 1)}
+                            className="w-6 h-7 flex items-center justify-center text-[#C5D0DF] hover:text-white"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Blood Bank Units Washed + Theatre Sister */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-[#8B98AB]">
+                        Blood Bank Units Washed
+                      </span>
+                      <button
+                        type="button"
+                        onClick={addBloodBankRow}
+                        className="font-mono text-[11px] font-bold text-[#00D2C6] hover:underline"
+                      >
+                        + Add Blood Unit
+                      </button>
+                    </div>
+
+                    {bloodBankUnits.length === 0 ? (
+                      <p className="text-xs text-[#6A7689]">
+                        No donor blood bank units washed.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {bloodBankUnits.map((unit, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={unit.bloodType}
+                              onChange={(e) =>
+                                updateBloodBankRow(idx, {
+                                  bloodType: e.target.value,
+                                })
+                              }
+                              placeholder="Type (e.g. O+)"
+                              className="w-24 h-9 px-2.5 rounded-lg bg-[#0E1218] border border-[#232B38] font-mono text-xs text-white placeholder-[#4E5B6E]"
+                            />
+                            <input
+                              type="text"
+                              value={unit.unitNumber}
+                              onChange={(e) =>
+                                updateBloodBankRow(idx, {
+                                  unitNumber: e.target.value,
+                                })
+                              }
+                              placeholder="Unit No."
+                              className="flex-1 h-9 px-2.5 rounded-lg bg-[#0E1218] border border-[#232B38] font-mono text-xs text-white placeholder-[#4E5B6E]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeBloodBankRow(idx)}
+                              className="p-1.5 text-[#8B98AB] hover:text-red-400"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB] mb-1.5">
+                      Theatre Sister / Witness Sign-Off
+                    </label>
+                    <input
+                      type="text"
+                      value={theatreSister}
+                      onChange={(e) => setTheatreSister(e.target.value)}
+                      placeholder="e.g. Sr. Les"
+                      className="w-full h-10 px-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* 7. Clinical Notes & Submit */}
           <section className="bg-[#14181F] border border-[#232B38] rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex items-center gap-2.5">
               <FileText className="w-4 h-4 text-[#00D2C6]" />
               <h2 className="font-[family-name:var(--font-montserrat)] font-bold text-sm uppercase tracking-wider text-white">
-                6. Notes
+                7. Clinical Notes &amp; Submit
               </h2>
             </div>
 
@@ -2372,7 +2979,7 @@ export default function PractitionerCapturePage() {
               rows={3}
               value={clinicalNotes}
               onChange={(e) => setClinicalNotes(e.target.value)}
-              placeholder="Consumables used, emergency callout details, PMB motivation notes..."
+              placeholder="e.g. Hepsaline 5 000ui swabs wash prepared, emergency callout motivation, PMB details..."
               className="w-full p-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
             />
 
@@ -2424,7 +3031,7 @@ export default function PractitionerCapturePage() {
           </section>
         </form>
 
-        {/* 7. Submitted Case Tracker */}
+        {/* 8. Submitted Case Tracker */}
         <section className="bg-[#14181F] border border-[#232B38] rounded-2xl p-5 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -2455,166 +3062,142 @@ export default function PractitionerCapturePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {cases.map((c) => {
-                const parsedNotes = splitNotesAndResolution(c.clinical_notes);
+              {cases.map((c) => (
+                <div
+                  key={c.id}
+                  className={`p-4 rounded-xl bg-[#0E1218] border space-y-3 ${
+                    c.status === 'QUERIED'
+                      ? 'border-amber-500/60'
+                      : c.status === 'BILLED'
+                      ? 'border-emerald-500/40'
+                      : 'border-[#232B38]'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-[#00D2C6]">
+                        {c.case_ref}
+                      </span>
+                      <span className="text-base font-bold text-white">
+                        {c.patient_first_name} {c.patient_surname}
+                      </span>
+                      <span className="text-xs text-[#8B98AB]">
+                        · {c.referring_surgeon}
+                      </span>
+                    </div>
 
-                return (
-                  <div
-                    key={c.id}
-                    className={`p-4 rounded-xl bg-[#0E1218] border space-y-3 ${
-                      c.status === 'QUERIED'
-                        ? 'border-amber-500/60'
-                        : c.status === 'BILLED'
-                        ? 'border-emerald-500/40'
-                        : 'border-[#232B38]'
-                    }`}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-[#00D2C6]">
-                          {c.case_ref}
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {c.status === 'BILLED' && c.billed_invoice_ref && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleCopyPmsNumber(
+                              c.id,
+                              c.billed_invoice_ref as string
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 font-mono text-xs sm:text-sm font-extrabold tracking-wide transition"
+                          title="Copy PMS Account Number"
+                        >
+                          <Hash className="w-3.5 h-3.5 text-emerald-300" />
+                          <span>PMS ACC: {c.billed_invoice_ref}</span>
+                          {copiedPmsId === c.id ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-300 ml-0.5" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5 text-emerald-300/80 ml-0.5" />
+                          )}
+                        </button>
+                      )}
+
+                      <span
+                        className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold uppercase ${
+                          c.status === 'BILLED'
+                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                            : c.status === 'QUERIED'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'bg-[#1D7AFC]/15 text-[#7FB3FF] border border-[#1D7AFC]/30'
+                        }`}
+                      >
+                        {c.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8B98AB]">
+                    <span>{c.service_date}</span>
+                    <span>·</span>
+                    <span>
+                      {c.start_time?.slice(0, 5)} – {c.end_time?.slice(0, 5)} (
+                      {c.duration_minutes}m / {c.calculated_time_units}u)
+                    </span>
+                    {c.medical_aid_name && c.medical_aid_name !== 'On Sticker' && (
+                      <>
+                        <span>·</span>
+                        <span className="text-[#C5D0DF]">{c.medical_aid_name}</span>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="px-2 py-0.5 rounded bg-[#14181F] border border-[#232B38] font-mono text-[11px] text-[#E2E8F0]">
+                      ICD: {c.primary_icd10}
+                      {Array.isArray(c.secondary_icd10) &&
+                      c.secondary_icd10.length > 0
+                        ? ` (+${c.secondary_icd10.length})`
+                        : ''}
+                    </span>
+                    {Array.isArray(c.tariffs) &&
+                      c.tariffs.map((t) => (
+                        <span
+                          key={t.procedure_code}
+                          className="px-2 py-0.5 rounded bg-[#00D2C6]/10 border border-[#00D2C6]/25 font-mono text-[11px] text-[#00D2C6]"
+                        >
+                          {t.procedure_code} ×{t.units}
                         </span>
-                        <span className="text-base font-bold text-white">
-                          {c.patient_first_name} {c.patient_surname}
+                      ))}
+                  </div>
+
+                  <PerfusionCaseSummary notes={c.clinical_notes} />
+
+                  {c.status === 'QUERIED' && (
+                    <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-400/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300 block">
+                          Action Required · Medical Bureau Query
                         </span>
-                        <span className="text-xs text-[#8B98AB]">
-                          · {c.referring_surgeon}
-                        </span>
+                        <p className="text-xs sm:text-sm font-semibold text-amber-100">
+                          {c.office_query_note ||
+                            'Medical Bureau requested clarification on this case.'}
+                        </p>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        {c.status === 'BILLED' && c.billed_invoice_ref && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopyPmsNumber(
-                                c.id,
-                                c.billed_invoice_ref as string
-                              )
-                            }
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 font-mono text-xs sm:text-sm font-extrabold tracking-wide transition"
-                            title="Copy PMS Account Number"
-                          >
-                            <Hash className="w-3.5 h-3.5 text-emerald-300" />
-                            <span>PMS ACC: {c.billed_invoice_ref}</span>
-                            {copiedPmsId === c.id ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-300 ml-0.5" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5 text-emerald-300/80 ml-0.5" />
-                            )}
-                          </button>
-                        )}
-
-                        <span
-                          className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold uppercase ${
-                            c.status === 'BILLED'
-                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                              : c.status === 'QUERIED'
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                              : 'bg-[#1D7AFC]/15 text-[#7FB3FF] border border-[#1D7AFC]/30'
-                          }`}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            startEditingCase(c, { openStickerPicker: true })
+                          }
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#090B0E] hover:bg-[#14181F] border border-amber-400/50 text-amber-200 font-bold text-xs transition"
                         >
-                          {c.status}
-                        </span>
+                          <Camera className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Re-Upload Sticker</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            startEditingCase(c, { focusReply: true })
+                          }
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-[#090B0E] font-extrabold text-xs transition"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Fix &amp; Reply</span>
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8B98AB]">
-                      <span>{c.service_date}</span>
-                      <span>·</span>
-                      <span>
-                        {c.start_time?.slice(0, 5)} – {c.end_time?.slice(0, 5)} (
-                        {c.duration_minutes}m / {c.calculated_time_units}u)
-                      </span>
-                      {c.medical_aid_name && c.medical_aid_name !== 'On Sticker' && (
-                        <>
-                          <span>·</span>
-                          <span className="text-[#C5D0DF]">{c.medical_aid_name}</span>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="px-2 py-0.5 rounded bg-[#14181F] border border-[#232B38] font-mono text-[11px] text-[#E2E8F0]">
-                        ICD: {c.primary_icd10}
-                        {Array.isArray(c.secondary_icd10) &&
-                        c.secondary_icd10.length > 0
-                          ? ` (+${c.secondary_icd10.length})`
-                          : ''}
-                      </span>
-                      {Array.isArray(c.tariffs) &&
-                        c.tariffs.map((t) => (
-                          <span
-                            key={t.procedure_code}
-                            className="px-2 py-0.5 rounded bg-[#00D2C6]/10 border border-[#00D2C6]/25 font-mono text-[11px] text-[#00D2C6]"
-                          >
-                            {t.procedure_code} ×{t.units}
-                          </span>
-                        ))}
-                    </div>
-
-                    {(parsedNotes.baseNotes ||
-                      parsedNotes.resolutionReplies.length > 0) && (
-                      <div className="p-3 rounded-lg bg-[#14181F] border border-[#232B38] space-y-1.5 text-xs">
-                        {parsedNotes.baseNotes && (
-                          <p className="text-[#C5D0DF]">
-                            <span className="font-mono text-[10px] uppercase text-[#8B98AB] mr-2">
-                              Notes:
-                            </span>
-                            {parsedNotes.baseNotes}
-                          </p>
-                        )}
-                        {parsedNotes.resolutionReplies.map((rep, i) => (
-                          <p key={i} className="text-[#9FF7F1]">
-                            <span className="font-mono text-[10px] uppercase text-[#00D2C6] mr-2">
-                              Your Reply:
-                            </span>
-                            {rep}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-
-                    {c.status === 'QUERIED' && (
-                      <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-400/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300 block">
-                            Action Required · Medical Bureau Query
-                          </span>
-                          <p className="text-xs sm:text-sm font-semibold text-amber-100">
-                            {c.office_query_note ||
-                              'Medical Bureau requested clarification on this case.'}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              startEditingCase(c, { openStickerPicker: true })
-                            }
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#090B0E] hover:bg-[#14181F] border border-amber-400/50 text-amber-200 font-bold text-xs transition"
-                          >
-                            <Camera className="w-3.5 h-3.5 text-amber-300" />
-                            <span>Re-Upload Sticker</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              startEditingCase(c, { focusReply: true })
-                            }
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-[#090B0E] font-extrabold text-xs transition"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            <span>Fix &amp; Reply</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </section>

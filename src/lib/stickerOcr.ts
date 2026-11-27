@@ -1,22 +1,34 @@
-import type { StickerOcrPayload } from '@/app/api/ocr/sticker/route';
+export interface StickerOcrPayload {
+  patient_first_name: string;
+  patient_surname: string;
+  main_member_name: string;
+  patient_id_number: string;
+  patient_dob: string;
+  postal_address: string;
+  medical_aid_name: string;
+  medical_aid_option: string;
+  medical_aid_number: string;
+  dependent_code: string;
+  authorisation_number: string;
+  patient_cellphone: string;
+  facility_name: string;
+  referring_surgeon: string;
+  surgeon_practice_no: string;
+  confidence: 'high' | 'medium' | 'low';
+}
 
-export type { StickerOcrPayload };
-
-/**
- * Compresses a raw mobile camera sticker photo to max 1280px JPEG (82% quality)
- * so uploads succeed quickly over weak hospital signal and minimize OpenAI vision tokens.
- */
 export async function compressStickerImage(
   file: File,
-  maxDimension = 1280,
+  maxDimension = 1600,
   quality = 0.82
-): Promise<{ compressedFile: File; dataUrl: string }> {
+): Promise<{ compressedFile: File; base64DataUrl: string }> {
   return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const img = new Image();
-
-    img.onload = () => {
-      try {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read sticker image.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Invalid sticker image format.'));
+      img.onload = () => {
         let { width, height } = img;
         if (width > maxDimension || height > maxDimension) {
           if (width >= height) {
@@ -31,46 +43,33 @@ export async function compressStickerImage(
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
-
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error('Canvas context unavailable'));
+          reject(new Error('Canvas context unavailable.'));
           return;
         }
-
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
 
+        const base64DataUrl = canvas.toDataURL('image/jpeg', quality);
         canvas.toBlob(
           (blob) => {
-            URL.revokeObjectURL(objectUrl);
             if (!blob) {
-              reject(new Error('Failed to encode compressed sticker JPEG'));
+              reject(new Error('Image compression failed.'));
               return;
             }
-            const cleanName = file.name.replace(/\.[^.]+$/, '') || 'sticker';
-            const compressedFile = new File([blob], `${cleanName}.jpg`, {
+            const cleanName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+            const compressedFile = new File([blob], cleanName, {
               type: 'image/jpeg',
-              lastModified: Date.now(),
             });
-            resolve({ compressedFile, dataUrl });
+            resolve({ compressedFile, base64DataUrl });
           },
           'image/jpeg',
           quality
         );
-      } catch (err) {
-        URL.revokeObjectURL(objectUrl);
-        reject(err);
-      }
+      };
+      img.src = String(reader.result);
     };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('Could not decode sticker image'));
-    };
-
-    img.src = objectUrl;
+    reader.readAsDataURL(file);
   });
 }
 
@@ -78,24 +77,24 @@ export async function runStickerOcr(
   file: File,
   accessToken: string
 ): Promise<{ compressedFile: File; ocr: StickerOcrPayload }> {
-  const { compressedFile, dataUrl } = await compressStickerImage(file);
+  const { compressedFile, base64DataUrl } = await compressStickerImage(file);
 
-  const res = await fetch('/api/ocr/sticker', {
+  const res = await fetch('/api/ocr-sticker', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ imageDataUrl: dataUrl }),
+    body: JSON.stringify({ imageDataUrl: base64DataUrl }),
   });
 
   const json = await res.json();
-  if (!res.ok || !json.data) {
-    throw new Error(json.error || 'Could not extract text from sticker.');
+  if (!res.ok || !json.ocr) {
+    throw new Error(json.error || 'Sticker OCR extraction failed.');
   }
 
   return {
     compressedFile,
-    ocr: json.data as StickerOcrPayload,
+    ocr: json.ocr as StickerOcrPayload,
   };
 }
