@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Activity,
   AlertTriangle,
+  BookmarkPlus,
   Building2,
   Camera,
   Check,
@@ -13,10 +14,13 @@ import {
   Copy,
   Edit3,
   FileText,
+  FolderPlus,
   Hash,
   Image as ImageIcon,
   Loader2,
   LogOut,
+  Minus,
+  Package,
   Phone,
   Plus,
   RotateCcw,
@@ -30,7 +34,6 @@ import {
   User,
   Wrench,
   X,
-  Zap,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useLicenseEntitlement } from '@/hooks/useLicenseEntitlement';
@@ -42,12 +45,10 @@ import {
 } from '@/lib/stickerOcr';
 import {
   ALL_TIME_ADDON_CODES,
-  CLINICAL_MACROS,
   calculateTheatreTiming,
   DEFAULT_ICD10_CODES,
   DISCIPLINE_075_PROCEDURES,
   evaluateDiscipline075Guardrails,
-  type ClinicalMacro,
   type Icd10Item,
   type ProcedureItem,
   type SelectedTariff,
@@ -80,6 +81,42 @@ interface CaseRecord {
   billed_invoice_ref: string | null;
   created_at: string;
 }
+
+interface CustomCodeBasket {
+  id: string;
+  name: string;
+  items: SelectedTariff[];
+  createdAt: string;
+}
+
+type ProcCategoryFilter =
+  | 'ALL'
+  | 'PERFUSION'
+  | 'CATH_LAB'
+  | 'CARDIAC_RHYTHM'
+  | 'CRITICAL_CARE'
+  | 'DIAGNOSTICS';
+
+const CATEGORY_TABS: Array<{ id: ProcCategoryFilter; label: string }> = [
+  { id: 'ALL', label: 'All Codes' },
+  { id: 'PERFUSION', label: 'Perfusion' },
+  { id: 'CATH_LAB', label: 'Cath Lab' },
+  { id: 'CARDIAC_RHYTHM', label: 'Pacing & EP' },
+  { id: 'CRITICAL_CARE', label: 'Critical Care' },
+  { id: 'DIAGNOSTICS', label: 'Diagnostics' },
+];
+
+// Codes where practitioners routinely adjust QTY (hours, standby, or 30-min increments)
+const QTY_HIGHLIGHT_CODES = new Set([
+  '75149',
+  '17149',
+  '75157',
+  '75013',
+  '75065',
+  '75066',
+  '75071',
+  '75085',
+]);
 
 function splitNotesAndResolution(rawNotes: string | null): {
   baseNotes: string;
@@ -138,7 +175,7 @@ export default function PractitionerCapturePage() {
   const [ocrResult, setOcrResult] = useState<StickerOcrPayload | null>(null);
   const [ocrNotice, setOcrNotice] = useState<string | null>(null);
 
-  // Extracted Medical Scheme & Hospital Metadata (populated by OCR or editable)
+  // Extracted Medical Scheme & Hospital Metadata
   const [medicalAidName, setMedicalAidName] = useState('');
   const [medicalAidNumber, setMedicalAidNumber] = useState('');
   const [dependentCode, setDependentCode] = useState('');
@@ -155,10 +192,20 @@ export default function PractitionerCapturePage() {
   const [startTime, setStartTime] = useState('08:00');
   const [endTime, setEndTime] = useState('09:30');
 
-  // Multi-Select Discipline 075 Procedure Codes
+  // Procedure Codes + Custom Client Baskets State
   const [procQuery, setProcQuery] = useState('');
-  const [procDropdownOpen, setProcDropdownOpen] = useState(false);
+  const [procCategory, setProcCategory] = useState<ProcCategoryFilter>('ALL');
   const [selectedTariffs, setSelectedTariffs] = useState<SelectedTariff[]>([]);
+
+  // Client-Created Custom Code Baskets (Saved per practitioner)
+  const [customBaskets, setCustomBaskets] = useState<CustomCodeBasket[]>([]);
+  const [basketBuilderOpen, setBasketBuilderOpen] = useState(false);
+  const [editingBasketId, setEditingBasketId] = useState<string | null>(null);
+  const [basketNameInput, setBasketNameInput] = useState('');
+  const [basketDraftItems, setBasketDraftItems] = useState<SelectedTariff[]>([]);
+  const [basketCodeSearch, setBasketCodeSearch] = useState('');
+  const [quickSaveModalOpen, setQuickSaveModalOpen] = useState(false);
+  const [quickSaveName, setQuickSaveName] = useState('');
 
   // Multi-Select ICD-10 Codes
   const [icdQuery, setIcdQuery] = useState('');
@@ -198,6 +245,39 @@ export default function PractitionerCapturePage() {
     [cases]
   );
 
+  // Persist Custom Code Baskets per Practitioner
+  const persistBaskets = useCallback(
+    (nextBaskets: CustomCodeBasket[]) => {
+      setCustomBaskets(nextBaskets);
+      if (userId && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            `clintechbills_baskets_${userId}`,
+            JSON.stringify(nextBaskets)
+          );
+        } catch {
+          // Ignore storage quota errors
+        }
+      }
+    },
+    [userId]
+  );
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(`clintechbills_baskets_${userId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as CustomCodeBasket[];
+        if (Array.isArray(parsed)) {
+          setCustomBaskets(parsed);
+        }
+      }
+    } catch {
+      // Ignore malformed JSON
+    }
+  }, [userId]);
+
   const fetchMyCases = useCallback(
     async (uid: string) => {
       setCasesLoading(true);
@@ -222,7 +302,7 @@ export default function PractitionerCapturePage() {
     [supabase]
   );
 
-  // 1. Load optional JSON catalogues from /public/data/
+  // 1. Load optional JSON catalogues from /public/data/ (preserving category metadata)
   useEffect(() => {
     let active = true;
 
@@ -231,15 +311,22 @@ export default function PractitionerCapturePage() {
         const procRes = await fetch('/data/procedure.json');
         if (procRes.ok) {
           const raw = (await procRes.json()) as Array<Record<string, unknown>>;
+          const categoryLookup = new Map(
+            DISCIPLINE_075_PROCEDURES.map((p) => [p.procedure_code, p.category])
+          );
           const parsed: ProcedureItem[] = raw
-            .map((row) => ({
-              procedure_code: String(
+            .map((row) => {
+              const code = String(
                 row.procedure_code ?? row.code ?? row.tariff_code ?? ''
-              ).trim(),
-              procedure_description: String(
-                row.procedure_description ?? row.description ?? ''
-              ).trim(),
-            }))
+              ).trim();
+              return {
+                procedure_code: code,
+                procedure_description: String(
+                  row.procedure_description ?? row.description ?? ''
+                ).trim(),
+                category: categoryLookup.get(code),
+              };
+            })
             .filter((item) => item.procedure_code && item.procedure_description);
 
           if (active && parsed.length > 0) {
@@ -373,22 +460,35 @@ export default function PractitionerCapturePage() {
     };
   }, [fetchMyCases, supabase, userId]);
 
-  // Filtered Discipline 075 Procedure Suggestions
-  const filteredProcedures = useMemo(() => {
+  // Filtered Procedure List (Category + Search)
+  const visibleProcedures = useMemo(() => {
     const q = procQuery.trim().toLowerCase();
-    const selectedSet = new Set(selectedTariffs.map((t) => t.procedure_code));
-    const pool = procedureCatalogue.filter(
-      (item) => !selectedSet.has(item.procedure_code)
-    );
-    if (!q) return pool.slice(0, 15);
+    return procedureCatalogue.filter((item) => {
+      if (procCategory !== 'ALL' && item.category !== procCategory) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        item.procedure_code.toLowerCase().includes(q) ||
+        item.procedure_description.toLowerCase().includes(q)
+      );
+    });
+  }, [procedureCatalogue, procCategory, procQuery]);
+
+  // Filtered Codes for the Custom Basket Builder
+  const basketBuilderMatches = useMemo(() => {
+    const q = basketCodeSearch.trim().toLowerCase();
+    const inDraft = new Set(basketDraftItems.map((i) => i.procedure_code));
+    const pool = procedureCatalogue.filter((p) => !inDraft.has(p.procedure_code));
+    if (!q) return pool.slice(0, 12);
     return pool
       .filter(
-        (item) =>
-          item.procedure_code.toLowerCase().includes(q) ||
-          item.procedure_description.toLowerCase().includes(q)
+        (p) =>
+          p.procedure_code.toLowerCase().includes(q) ||
+          p.procedure_description.toLowerCase().includes(q)
       )
-      .slice(0, 20);
-  }, [procedureCatalogue, procQuery, selectedTariffs]);
+      .slice(0, 15);
+  }, [procedureCatalogue, basketCodeSearch, basketDraftItems]);
 
   // Filtered ICD-10 Suggestions
   const filteredIcds = useMemo(() => {
@@ -455,7 +555,6 @@ export default function PractitionerCapturePage() {
         setStickerFile(compressedFile);
       }
     } catch (err) {
-      // Fallback: still keep compressed image so upload stays fast even if OCR fails
       try {
         const { compressedFile } = await compressStickerImage(rawFile);
         setStickerFile(compressedFile);
@@ -595,32 +694,6 @@ export default function PractitionerCapturePage() {
     setFormError(null);
   }
 
-  // Apply One-Tap Clinical Macro
-  function applyClinicalMacro(macro: ClinicalMacro) {
-    const nextTariffs: SelectedTariff[] = [];
-
-    for (const code of macro.codes) {
-      const found =
-        procedureCatalogue.find((p) => p.procedure_code === code) ||
-        DISCIPLINE_075_PROCEDURES.find((p) => p.procedure_code === code);
-      if (!found) continue;
-
-      const isTimeAddon = ALL_TIME_ADDON_CODES.has(code);
-      if (isTimeAddon && timing.extraThirtyMinAfterFirstHour <= 0) {
-        continue;
-      }
-
-      const units = isTimeAddon ? timing.extraThirtyMinAfterFirstHour : 1;
-      nextTariffs.push({ ...found, units });
-    }
-
-    setSelectedTariffs(nextTariffs);
-
-    if (macro.defaultIcd10 && selectedIcds.length === 0) {
-      setSelectedIcds([macro.defaultIcd10]);
-    }
-  }
-
   // Apply Guardrail Quick Fix
   function applyGuardrailFix(code: string, units = 1) {
     const existing = selectedTariffs.find((t) => t.procedure_code === code);
@@ -637,11 +710,14 @@ export default function PractitionerCapturePage() {
     setSelectedTariffs((prev) => [...prev, { ...found, units }]);
   }
 
-  // Handlers: Multi-Select Discipline 075 Tariffs
-  function addProcedureCode(item: ProcedureItem) {
-    if (
-      selectedTariffs.some((existing) => existing.procedure_code === item.procedure_code)
-    ) {
+  // Handlers: Procedure Codes & QTY
+  function toggleOrAddProcedureCode(item: ProcedureItem) {
+    const existing = selectedTariffs.find(
+      (t) => t.procedure_code === item.procedure_code
+    );
+    if (existing) {
+      // Increment QTY if already selected so tapping feels fast
+      updateTariffUnits(item.procedure_code, existing.units + 1);
       return;
     }
 
@@ -652,8 +728,30 @@ export default function PractitionerCapturePage() {
         : 1;
 
     setSelectedTariffs((prev) => [...prev, { ...item, units: defaultUnits }]);
+  }
+
+  function addCustomCodeFromSearch() {
+    const cleanCode = procQuery.trim().toUpperCase();
+    if (!cleanCode) return;
+
+    const existing = selectedTariffs.find(
+      (t) => t.procedure_code.toUpperCase() === cleanCode
+    );
+    if (existing) {
+      updateTariffUnits(existing.procedure_code, existing.units + 1);
+      setProcQuery('');
+      return;
+    }
+
+    setSelectedTariffs((prev) => [
+      ...prev,
+      {
+        procedure_code: cleanCode,
+        procedure_description: 'Custom Tariff / Procedure Entry',
+        units: 1,
+      },
+    ]);
     setProcQuery('');
-    setProcDropdownOpen(false);
   }
 
   function updateTariffUnits(code: string, nextUnits: number) {
@@ -667,6 +765,128 @@ export default function PractitionerCapturePage() {
 
   function removeTariffCode(code: string) {
     setSelectedTariffs((prev) => prev.filter((item) => item.procedure_code !== code));
+  }
+
+  // Handlers: Custom Client Code Baskets
+  function applyCustomBasket(basket: CustomCodeBasket) {
+    setSelectedTariffs((prev) => {
+      const map = new Map(prev.map((t) => [t.procedure_code, t]));
+      for (const item of basket.items) {
+        const isExtra30MinCode = ALL_TIME_ADDON_CODES.has(item.procedure_code);
+        const resolvedUnits =
+          isExtra30MinCode && timing.extraThirtyMinAfterFirstHour > 0
+            ? timing.extraThirtyMinAfterFirstHour
+            : item.units;
+        map.set(item.procedure_code, { ...item, units: resolvedUnits });
+      }
+      return Array.from(map.values());
+    });
+  }
+
+  function openNewBasketBuilder() {
+    setEditingBasketId(null);
+    setBasketNameInput('');
+    setBasketDraftItems(selectedTariffs.map((t) => ({ ...t })));
+    setBasketCodeSearch('');
+    setBasketBuilderOpen(true);
+  }
+
+  function openEditBasketBuilder(basket: CustomCodeBasket) {
+    setEditingBasketId(basket.id);
+    setBasketNameInput(basket.name);
+    setBasketDraftItems(basket.items.map((t) => ({ ...t })));
+    setBasketCodeSearch('');
+    setBasketBuilderOpen(true);
+  }
+
+  function addCodeToBasketDraft(proc: ProcedureItem) {
+    if (basketDraftItems.some((i) => i.procedure_code === proc.procedure_code)) {
+      return;
+    }
+    setBasketDraftItems((prev) => [...prev, { ...proc, units: 1 }]);
+    setBasketCodeSearch('');
+  }
+
+  function addCustomCodeToBasketDraft() {
+    const cleanCode = basketCodeSearch.trim().toUpperCase();
+    if (!cleanCode) return;
+    if (
+      basketDraftItems.some(
+        (i) => i.procedure_code.toUpperCase() === cleanCode
+      )
+    ) {
+      return;
+    }
+    setBasketDraftItems((prev) => [
+      ...prev,
+      {
+        procedure_code: cleanCode,
+        procedure_description: 'Custom Tariff / Procedure Entry',
+        units: 1,
+      },
+    ]);
+    setBasketCodeSearch('');
+  }
+
+  function updateBasketDraftUnits(code: string, units: number) {
+    const clamped = Math.max(1, Math.min(99, Math.floor(units) || 1));
+    setBasketDraftItems((prev) =>
+      prev.map((i) =>
+        i.procedure_code === code ? { ...i, units: clamped } : i
+      )
+    );
+  }
+
+  function removeCodeFromBasketDraft(code: string) {
+    setBasketDraftItems((prev) =>
+      prev.filter((i) => i.procedure_code !== code)
+    );
+  }
+
+  function handleSaveBasketBuilder() {
+    const name = basketNameInput.trim();
+    if (!name || basketDraftItems.length === 0) return;
+
+    if (editingBasketId) {
+      const updated = customBaskets.map((b) =>
+        b.id === editingBasketId
+          ? { ...b, name, items: basketDraftItems }
+          : b
+      );
+      persistBaskets(updated);
+    } else {
+      const created: CustomCodeBasket = {
+        id: `basket_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        name,
+        items: basketDraftItems,
+        createdAt: new Date().toISOString(),
+      };
+      persistBaskets([created, ...customBaskets]);
+    }
+
+    setBasketBuilderOpen(false);
+    setEditingBasketId(null);
+    setBasketNameInput('');
+    setBasketDraftItems([]);
+  }
+
+  function handleQuickSaveCurrentSelection() {
+    const name = quickSaveName.trim();
+    if (!name || selectedTariffs.length === 0) return;
+
+    const created: CustomCodeBasket = {
+      id: `basket_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      name,
+      items: selectedTariffs.map((t) => ({ ...t })),
+      createdAt: new Date().toISOString(),
+    };
+    persistBaskets([created, ...customBaskets]);
+    setQuickSaveName('');
+    setQuickSaveModalOpen(false);
+  }
+
+  function deleteCustomBasket(id: string) {
+    persistBaskets(customBaskets.filter((b) => b.id !== id));
   }
 
   // Handlers: Multi-Select ICD-10
@@ -700,7 +920,7 @@ export default function PractitionerCapturePage() {
     if (!editingCase && !entitlement.canSubmitCase) {
       setFormError(
         entitlement.blockReason ||
-          'Monthly licence quota reached. Tap Activate Key above to unlock unlimited cases.'
+          'Monthly licence quota reached. Tap Upgrade / Key below to unlock unlimited cases.'
       );
       return;
     }
@@ -710,15 +930,11 @@ export default function PractitionerCapturePage() {
       return;
     }
     if (!referringSurgeon.trim()) {
-      setFormError('Surgeon name are required.');
+      setFormError('Surgeon name is required.');
       return;
     }
     if (!startTime || !endTime || timing.durationMinutes <= 0) {
       setFormError('Enter valid start and end times.');
-      return;
-    }
-    if (selectedTariffs.length === 0) {
-      setFormError('Select at least one Discipline 075 procedure code.');
       return;
     }
     if (selectedIcds.length === 0) {
@@ -940,6 +1156,10 @@ export default function PractitionerCapturePage() {
     );
   }
 
+  const selectedCodeSet = new Set(
+    selectedTariffs.map((t) => t.procedure_code)
+  );
+
   return (
     <div ref={formTopRef} className="min-h-screen bg-[#090B0E] text-[#F3F6FA] pb-16">
       {/* Top Navigation Bar */}
@@ -979,7 +1199,7 @@ export default function PractitionerCapturePage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-        {/* MediBurgh Licence & Monthly Quota Banner */}
+        {/* Discreet Floating Subscription / Key Pill & Closeable Modal */}
         <LicenseBanner entitlement={entitlement} />
 
         {/* Queried Cases Action Banner */}
@@ -1426,233 +1646,13 @@ export default function PractitionerCapturePage() {
             </div>
           </section>
 
-          {/* 4. Multi-Select Procedure Codes (Discipline 075) + Quick-Pick Macros + Guardrails */}
-          <section className="bg-[#14181F] border border-[#232B38] rounded-2xl p-5 sm:p-6 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <Activity className="w-4 h-4 text-[#00D2C6]" />
-                <h2 className="font-[family-name:var(--font-montserrat)] font-bold text-sm uppercase tracking-wider text-white">
-                  4. Procedure Codes (Discipline 075) *
-                </h2>
-              </div>
-              <span className="text-xs font-mono text-[#8B98AB]">
-                {selectedTariffs.length} selected
-              </span>
-            </div>
-
-            {/* One-Tap Clinical Technology Macros */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-[#8B98AB]">
-                <Zap className="w-3.5 h-3.5 text-[#00D2C6]" />
-                <span>Quick-Pick Protocol Bundles (Auto-Syncs Time Units)</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {CLINICAL_MACROS.map((macro) => (
-                  <button
-                    key={macro.id}
-                    type="button"
-                    onClick={() => applyClinicalMacro(macro)}
-                    className="p-2.5 rounded-xl bg-[#0E1218] hover:bg-[#19202B] border border-[#232B38] hover:border-[#00D2C6]/50 text-left transition group"
-                  >
-                    <p className="text-xs font-bold text-white group-hover:text-[#00D2C6] transition">
-                      {macro.label}
-                    </p>
-                    <p className="text-[11px] font-mono text-[#8B98AB] mt-0.5">
-                      {macro.subtitle}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Searchable Dropdown */}
-            <div className="relative">
-              <div className="relative">
-                <Search className="w-4 h-4 text-[#8B98AB] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={procQuery}
-                  onFocus={() => setProcDropdownOpen(true)}
-                  onChange={(e) => {
-                    setProcQuery(e.target.value);
-                    setProcDropdownOpen(true);
-                  }}
-                  placeholder="Search Discipline 075 code or keyword (75063, 75065, pacemaker, CRRT, ECMO, IONM)..."
-                  className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
-                />
-                {procQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setProcQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B98AB] hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-
-              {procDropdownOpen && (
-                <div className="mt-2 max-h-64 overflow-y-auto rounded-xl bg-[#0E1218] border border-[#2C3545] shadow-2xl divide-y divide-[#1B212B]">
-                  {filteredProcedures.length === 0 ? (
-                    <div className="p-3 text-xs text-[#8B98AB]">
-                      No matching Discipline 075 procedure codes found.
-                    </div>
-                  ) : (
-                    filteredProcedures.map((proc) => (
-                      <button
-                        key={proc.procedure_code}
-                        type="button"
-                        onClick={() => addProcedureCode(proc)}
-                        className="w-full px-3.5 py-2.5 text-left hover:bg-[#1B212B] transition flex items-start justify-between gap-3"
-                      >
-                        <div className="min-w-0">
-                          <span className="font-mono text-xs font-bold text-[#00D2C6] mr-2.5">
-                            {proc.procedure_code}
-                          </span>
-                          <span className="text-xs sm:text-sm text-[#E2E8F0]">
-                            {proc.procedure_description}
-                          </span>
-                        </div>
-                        <Plus className="w-4 h-4 text-[#00D2C6] shrink-0 mt-0.5" />
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Live Discipline 075 Coding Guardrails */}
-            {guardrailAlerts.length > 0 && (
-              <div className="space-y-2">
-                {guardrailAlerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
-                      alert.severity === 'warning'
-                        ? 'bg-amber-500/10 border-amber-400/45 text-amber-100'
-                        : 'bg-[#1D7AFC]/10 border-[#1D7AFC]/40 text-[#CFE2FF]'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <ShieldAlert
-                        className={`w-4 h-4 shrink-0 mt-0.5 ${
-                          alert.severity === 'warning'
-                            ? 'text-amber-300'
-                            : 'text-[#7FB3FF]'
-                        }`}
-                      />
-                      <div className="text-xs">
-                        <p className="font-bold">{alert.title}</p>
-                        <p className="opacity-85 mt-0.5">{alert.detail}</p>
-                      </div>
-                    </div>
-
-                    {alert.fixCode && alert.fixActionLabel && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          applyGuardrailFix(
-                            alert.fixCode as string,
-                            alert.fixUnits ?? 1
-                          )
-                        }
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-xs font-bold shrink-0 transition ${
-                          alert.severity === 'warning'
-                            ? 'bg-amber-400 hover:bg-amber-300 text-[#090B0E]'
-                            : 'bg-[#00D2C6] hover:bg-[#00E5D8] text-[#090B0E]'
-                        }`}
-                      >
-                        <Wrench className="w-3.5 h-3.5" />
-                        <span>{alert.fixActionLabel}</span>
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Selected Tariffs List */}
-            {selectedTariffs.length > 0 && (
-              <div className="space-y-2.5 pt-1">
-                {selectedTariffs.map((tariff) => {
-                  const isTimeAddon = ALL_TIME_ADDON_CODES.has(
-                    tariff.procedure_code
-                  );
-
-                  return (
-                    <div
-                      key={tariff.procedure_code}
-                      className="p-3.5 rounded-xl bg-[#0E1218] border border-[#232B38] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded bg-[#00D2C6]/15 border border-[#00D2C6]/35 font-mono text-xs font-bold text-[#00D2C6]">
-                            {tariff.procedure_code}
-                          </span>
-                          {isTimeAddon &&
-                            timing.extraThirtyMinAfterFirstHour > 0 && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateTariffUnits(
-                                    tariff.procedure_code,
-                                    timing.extraThirtyMinAfterFirstHour
-                                  )
-                                }
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#1D7AFC]/20 text-[#7FB3FF] text-[10px] font-mono hover:bg-[#1D7AFC]/30"
-                              >
-                                <Sparkles className="w-3 h-3" />
-                                Sync {timing.extraThirtyMinAfterFirstHour} time
-                                units
-                              </button>
-                            )}
-                        </div>
-                        <p className="text-xs text-[#C5D0DF] leading-relaxed">
-                          {tariff.procedure_description}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2.5 self-end sm:self-center shrink-0">
-                        <label className="text-[11px] font-mono text-[#8B98AB]">
-                          UNITS
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={99}
-                          value={tariff.units}
-                          onChange={(e) =>
-                            updateTariffUnits(
-                              tariff.procedure_code,
-                              Number(e.target.value)
-                            )
-                          }
-                          className="w-16 h-9 px-2 rounded-lg bg-[#14181F] border border-[#2C3545] focus:border-[#00D2C6] focus:outline-none font-mono text-sm text-center text-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeTariffCode(tariff.procedure_code)}
-                          className="p-2 rounded-lg bg-[#14181F] hover:bg-red-500/15 text-[#8B98AB] hover:text-red-400 transition"
-                          title="Remove procedure code"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          {/* 5. Multi-Select ICD-10 Codes */}
+          {/* 4. Multi-Select ICD-10 Codes */}
           <section className="bg-[#14181F] border border-[#232B38] rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
                 <Stethoscope className="w-4 h-4 text-[#00D2C6]" />
                 <h2 className="font-[family-name:var(--font-montserrat)] font-bold text-sm uppercase tracking-wider text-white">
-                  5. ICD-10 Codes (Multi-Select) *
+                  4. ICD-10 Codes (Multi-Select) *
                 </h2>
               </div>
               <span className="text-xs font-mono text-[#8B98AB]">
@@ -1780,6 +1780,585 @@ export default function PractitionerCapturePage() {
             )}
           </section>
 
+          {/* 5. Tariff Codes, Custom Client Baskets & QTY Selector */}
+          <section className="bg-[#14181F] border border-[#232B38] rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <Activity className="w-4 h-4 text-[#00D2C6]" />
+                <h2 className="font-[family-name:var(--font-montserrat)] font-bold text-sm uppercase tracking-wider text-white">
+                  5. Tariff Codes &amp; Custom Baskets
+                </h2>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedTariffs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickSaveName('');
+                      setQuickSaveModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00D2C6]/15 hover:bg-[#00D2C6]/25 border border-[#00D2C6]/40 font-mono text-[11px] font-bold text-[#00D2C6] transition"
+                  >
+                    <BookmarkPlus className="w-3.5 h-3.5" />
+                    <span>Save Selection as Basket</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={openNewBasketBuilder}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0E1218] hover:bg-[#1B212B] border border-[#2C3545] hover:border-[#00D2C6]/50 font-mono text-[11px] font-bold text-white transition"
+                >
+                  <FolderPlus className="w-3.5 h-3.5 text-[#00D2C6]" />
+                  <span>+ Create Basket</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick-Save Current Selection Popover */}
+            {quickSaveModalOpen && (
+              <div className="p-3.5 rounded-xl bg-[#0E1218] border border-[#00D2C6]/45 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <input
+                  type="text"
+                  value={quickSaveName}
+                  onChange={(e) => setQuickSaveName(e.target.value)}
+                  placeholder="Basket name (e.g. My Bypass Setup / ICU Dialysis)..."
+                  className="flex-1 h-10 px-3 rounded-lg bg-[#14181F] border border-[#2C3545] focus:border-[#00D2C6] focus:outline-none text-xs text-white placeholder-[#4E5B6E]"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={!quickSaveName.trim()}
+                    onClick={handleQuickSaveCurrentSelection}
+                    className="h-10 px-4 rounded-lg bg-[#00D2C6] hover:bg-[#00E5D8] disabled:opacity-50 text-xs font-extrabold text-[#08080B]"
+                  >
+                    Save Basket
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickSaveModalOpen(false)}
+                    className="h-10 px-3 rounded-lg bg-[#14181F] border border-[#232B38] text-xs text-[#8B98AB] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Client's Saved Custom Code Baskets */}
+            {customBaskets.length > 0 ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-[#8B98AB]">
+                  <Package className="w-3.5 h-3.5 text-[#00D2C6]" />
+                  <span>Your Saved Code Baskets (Tap to Apply)</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {customBaskets.map((basket) => (
+                    <div
+                      key={basket.id}
+                      className="rounded-xl bg-[#0E1218] hover:bg-[#18202C] border border-[#232B38] hover:border-[#00D2C6]/55 p-3 transition flex items-start justify-between gap-2 group"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => applyCustomBasket(basket)}
+                        className="flex-1 text-left min-w-0"
+                      >
+                        <p className="text-xs font-bold text-white group-hover:text-[#00D2C6] truncate transition">
+                          {basket.name}
+                        </p>
+                        <p className="text-[11px] font-mono text-[#8B98AB] mt-0.5 truncate">
+                          {basket.items
+                            .map((i) => `${i.procedure_code} ×${i.units}`)
+                            .join(' · ')}
+                        </p>
+                      </button>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => openEditBasketBuilder(basket)}
+                          className="p-1.5 rounded-lg text-[#8B98AB] hover:text-[#00D2C6] hover:bg-[#14181F]"
+                          title="Edit basket"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteCustomBasket(basket.id)}
+                          className="p-1.5 rounded-lg text-[#8B98AB] hover:text-red-400 hover:bg-[#14181F]"
+                          title="Delete basket"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="px-3.5 py-2.5 rounded-xl bg-[#0E1218] border border-dashed border-[#2C3545] flex flex-wrap items-center justify-between gap-2 text-xs text-[#8B98AB]">
+                <span>
+                  No custom code baskets yet. Create reusable bundles with your preferred codes &amp; quantities.
+                </span>
+                <button
+                  type="button"
+                  onClick={openNewBasketBuilder}
+                  className="font-mono text-[11px] font-bold text-[#00D2C6] hover:underline"
+                >
+                  + Create your first basket
+                </button>
+              </div>
+            )}
+
+            {/* Custom Basket Builder Panel */}
+            {basketBuilderOpen && (
+              <div className="p-4 rounded-2xl bg-[#0B0E14] border-2 border-[#00D2C6]/45 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#00D2C6]">
+                    {editingBasketId ? 'Edit Code Basket' : 'Create Custom Code Basket'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setBasketBuilderOpen(false)}
+                    className="p-1 text-[#8B98AB] hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  value={basketNameInput}
+                  onChange={(e) => setBasketNameInput(e.target.value)}
+                  placeholder="Basket Name (e.g. Perfusion Standard, Cath Lab Stent, ICU 75149)..."
+                  className="w-full h-10 px-3.5 rounded-xl bg-[#14181F] border border-[#2C3545] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+                />
+
+                <div className="relative">
+                  <Search className="w-4 h-4 text-[#8B98AB] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={basketCodeSearch}
+                    onChange={(e) => setBasketCodeSearch(e.target.value)}
+                    placeholder="Search code to add to basket (e.g. 75011, 75063, 75149)..."
+                    className="w-full h-10 pl-9 pr-3 rounded-xl bg-[#14181F] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-xs text-white placeholder-[#4E5B6E]"
+                  />
+                </div>
+
+                {/* Quick search matches inside Basket Builder */}
+                <div className="max-h-36 overflow-y-auto rounded-xl bg-[#14181F] border border-[#232B38] divide-y divide-[#1D2430]">
+                  {basketBuilderMatches.length === 0 ? (
+                    <div className="p-2.5 flex items-center justify-between text-xs text-[#8B98AB]">
+                      <span>No matching code in list.</span>
+                      {basketCodeSearch.trim() && (
+                        <button
+                          type="button"
+                          onClick={addCustomCodeToBasketDraft}
+                          className="px-2.5 py-1 rounded-lg bg-[#00D2C6] text-[#08080B] font-mono font-bold text-[11px]"
+                        >
+                          + Add {basketCodeSearch.trim().toUpperCase()}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    basketBuilderMatches.map((proc) => (
+                      <button
+                        key={proc.procedure_code}
+                        type="button"
+                        onClick={() => addCodeToBasketDraft(proc)}
+                        className="w-full px-3 py-2 text-left hover:bg-[#1E2633] flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="truncate">
+                          <span className="font-mono font-bold text-[#00D2C6] mr-2">
+                            {proc.procedure_code}
+                          </span>
+                          <span className="text-[#C5D0DF]">
+                            {proc.procedure_description}
+                          </span>
+                        </div>
+                        <Plus className="w-3.5 h-3.5 text-[#00D2C6] shrink-0" />
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {/* Codes inside Draft Basket with Default QTY */}
+                {basketDraftItems.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="block font-mono text-[10px] uppercase tracking-wider text-[#8B98AB]">
+                      Codes &amp; Default QTY in this Basket ({basketDraftItems.length})
+                    </span>
+                    {basketDraftItems.map((item) => (
+                      <div
+                        key={item.procedure_code}
+                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#14181F] border border-[#232B38]"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-mono text-xs font-bold text-[#00D2C6] mr-2">
+                            {item.procedure_code}
+                          </span>
+                          <span className="text-xs text-[#C5D0DF] truncate">
+                            {item.procedure_description}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="font-mono text-[10px] text-[#8B98AB]">QTY</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateBasketDraftUnits(item.procedure_code, item.units - 1)
+                            }
+                            className="w-7 h-7 rounded-lg bg-[#0E1218] border border-[#2C3545] flex items-center justify-center text-white"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-7 text-center font-mono text-xs font-bold text-white">
+                            {item.units}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateBasketDraftUnits(item.procedure_code, item.units + 1)
+                            }
+                            className="w-7 h-7 rounded-lg bg-[#0E1218] border border-[#2C3545] flex items-center justify-center text-white"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              removeCodeFromBasketDraft(item.procedure_code)
+                            }
+                            className="p-1.5 text-[#8B98AB] hover:text-red-400"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setBasketBuilderOpen(false)}
+                    className="px-3.5 py-2 rounded-xl bg-[#14181F] border border-[#232B38] text-xs font-semibold text-[#8B98AB] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!basketNameInput.trim() || basketDraftItems.length === 0}
+                    onClick={handleSaveBasketBuilder}
+                    className="px-4 py-2 rounded-xl bg-[#00D2C6] hover:bg-[#00E5D8] disabled:opacity-50 text-xs font-extrabold text-[#08080B]"
+                  >
+                    Save Basket
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Category Filter Pills + Instant Search */}
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap gap-1.5">
+                {CATEGORY_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setProcCategory(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg font-mono text-[11px] font-bold transition ${
+                      procCategory === tab.id
+                        ? 'bg-[#00D2C6] text-[#08080B]'
+                        : 'bg-[#0E1218] text-[#8B98AB] hover:text-white border border-[#232B38]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative">
+                <Search className="w-4 h-4 text-[#8B98AB] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={procQuery}
+                  onChange={(e) => setProcQuery(e.target.value)}
+                  placeholder="Filter by code or keyword (e.g. 75011, 75063, 75149, pacemaker, balloon, echo)..."
+                  className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
+                />
+                {procQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setProcQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B98AB] hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Visible One-Tap Code Picker List */}
+              <div className="max-h-60 overflow-y-auto rounded-xl bg-[#0E1218] border border-[#232B38] divide-y divide-[#1A202B]">
+                {visibleProcedures.length === 0 ? (
+                  <div className="p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs text-[#8B98AB]">
+                    <span>No matching tariff code in list.</span>
+                    {procQuery.trim() && (
+                      <button
+                        type="button"
+                        onClick={addCustomCodeFromSearch}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00D2C6] text-[#08080B] font-mono font-bold"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Custom Code &ldquo;{procQuery.trim().toUpperCase()}&rdquo;</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  visibleProcedures.map((proc) => {
+                    const isPicked = selectedCodeSet.has(proc.procedure_code);
+                    const pickedItem = selectedTariffs.find(
+                      (t) => t.procedure_code === proc.procedure_code
+                    );
+
+                    return (
+                      <button
+                        key={proc.procedure_code}
+                        type="button"
+                        onClick={() => toggleOrAddProcedureCode(proc)}
+                        className={`w-full px-3.5 py-2.5 text-left transition flex items-center justify-between gap-3 ${
+                          isPicked
+                            ? 'bg-[#00D2C6]/10 hover:bg-[#00D2C6]/15'
+                            : 'hover:bg-[#19202B]'
+                        }`}
+                      >
+                        <div className="min-w-0 flex items-center gap-2.5">
+                          <span className="px-2 py-0.5 rounded bg-[#14181F] border border-[#2C3545] font-mono text-xs font-extrabold text-[#00D2C6] shrink-0">
+                            {proc.procedure_code}
+                          </span>
+                          <span className="text-xs text-[#E2E8F0] line-clamp-2">
+                            {proc.procedure_description}
+                          </span>
+                        </div>
+
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold shrink-0 ${
+                            isPicked
+                              ? 'bg-[#00D2C6] text-[#08080B]'
+                              : 'bg-[#14181F] border border-[#2C3545] text-[#00D2C6]'
+                          }`}
+                        >
+                          {isPicked ? (
+                            <>
+                              <Check className="w-3 h-3" />
+                              <span>QTY {pickedItem?.units ?? 1}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3 h-3" />
+                              <span>Add</span>
+                            </>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Live Coding Guardrails */}
+            {guardrailAlerts.length > 0 && (
+              <div className="space-y-2">
+                {guardrailAlerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                      alert.severity === 'warning'
+                        ? 'bg-amber-500/10 border-amber-400/45 text-amber-100'
+                        : 'bg-[#1D7AFC]/10 border-[#1D7AFC]/40 text-[#CFE2FF]'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <ShieldAlert
+                        className={`w-4 h-4 shrink-0 mt-0.5 ${
+                          alert.severity === 'warning'
+                            ? 'text-amber-300'
+                            : 'text-[#7FB3FF]'
+                        }`}
+                      />
+                      <div className="text-xs">
+                        <p className="font-bold">{alert.title}</p>
+                        <p className="opacity-85 mt-0.5">{alert.detail}</p>
+                      </div>
+                    </div>
+
+                    {alert.fixCode && alert.fixActionLabel && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          applyGuardrailFix(
+                            alert.fixCode as string,
+                            alert.fixUnits ?? 1
+                          )
+                        }
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-xs font-bold shrink-0 transition ${
+                          alert.severity === 'warning'
+                            ? 'bg-amber-400 hover:bg-amber-300 text-[#090B0E]'
+                            : 'bg-[#00D2C6] hover:bg-[#00E5D8] text-[#090B0E]'
+                        }`}
+                      >
+                        <Wrench className="w-3.5 h-3.5" />
+                        <span>{alert.fixActionLabel}</span>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Selected Codes with Prominent QTY Controls */}
+            {selectedTariffs.length > 0 && (
+              <div className="space-y-2.5 pt-2 border-t border-[#232B38]">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-[#00D2C6]">
+                    Selected Codes &amp; Quantities ({selectedTariffs.length})
+                  </span>
+                </div>
+
+                {selectedTariffs.map((tariff) => {
+                  const isTimeAddon = ALL_TIME_ADDON_CODES.has(
+                    tariff.procedure_code
+                  );
+                  const isQtyHighlight = QTY_HIGHLIGHT_CODES.has(
+                    tariff.procedure_code
+                  );
+
+                  return (
+                    <div
+                      key={tariff.procedure_code}
+                      className="p-3.5 rounded-xl bg-[#0E1218] border border-[#2C3545] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2 py-0.5 rounded bg-[#00D2C6]/15 border border-[#00D2C6]/35 font-mono text-xs font-bold text-[#00D2C6]">
+                            {tariff.procedure_code}
+                          </span>
+                          {isQtyHighlight && (
+                            <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-400/35 font-mono text-[10px] font-bold text-amber-200">
+                              SET QTY / HOURS
+                            </span>
+                          )}
+                          {isTimeAddon &&
+                            timing.extraThirtyMinAfterFirstHour > 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateTariffUnits(
+                                    tariff.procedure_code,
+                                    timing.extraThirtyMinAfterFirstHour
+                                  )
+                                }
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#1D7AFC]/20 text-[#7FB3FF] text-[10px] font-mono hover:bg-[#1D7AFC]/30"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                Sync {timing.extraThirtyMinAfterFirstHour} time
+                                units
+                              </button>
+                            )}
+                        </div>
+                        <p className="text-xs text-[#C5D0DF] leading-relaxed">
+                          {tariff.procedure_description}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
+                        {isQtyHighlight && (
+                          <div className="flex items-center gap-1 mr-1">
+                            {[1, 2, 3, 4].map((q) => (
+                              <button
+                                key={q}
+                                type="button"
+                                onClick={() =>
+                                  updateTariffUnits(tariff.procedure_code, q)
+                                }
+                                className={`w-7 h-7 rounded-lg font-mono text-xs font-bold transition ${
+                                  tariff.units === q
+                                    ? 'bg-[#00D2C6] text-[#08080B]'
+                                    : 'bg-[#14181F] border border-[#232B38] text-[#8B98AB] hover:text-white'
+                                }`}
+                              >
+                                {q}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        <span className="text-[11px] font-mono font-bold text-[#8B98AB]">
+                          QTY
+                        </span>
+
+                        <div className="inline-flex items-center rounded-lg bg-[#14181F] border border-[#2C3545]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateTariffUnits(
+                                tariff.procedure_code,
+                                tariff.units - 1
+                              )
+                            }
+                            aria-label="Decrease quantity"
+                            className="w-8 h-9 flex items-center justify-center text-[#C5D0DF] hover:text-white"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <input
+                            type="number"
+                            min={1}
+                            max={99}
+                            value={tariff.units}
+                            onChange={(e) =>
+                              updateTariffUnits(
+                                tariff.procedure_code,
+                                Number(e.target.value)
+                              )
+                            }
+                            className="w-12 h-9 bg-transparent font-mono text-sm font-bold text-center text-white focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateTariffUnits(
+                                tariff.procedure_code,
+                                tariff.units + 1
+                              )
+                            }
+                            aria-label="Increase quantity"
+                            className="w-8 h-9 flex items-center justify-center text-[#C5D0DF] hover:text-white"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeTariffCode(tariff.procedure_code)}
+                          className="p-2 rounded-lg bg-[#14181F] hover:bg-red-500/15 text-[#8B98AB] hover:text-red-400 transition"
+                          title="Remove procedure code"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
           {/* 6. Notes & Submit */}
           <section className="bg-[#14181F] border border-[#232B38] rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex items-center gap-2.5">
@@ -1832,7 +2411,7 @@ export default function PractitionerCapturePage() {
                 ) : !entitlement.canSubmitCase ? (
                   <>
                     <AlertTriangle className="w-4 h-4" />
-                    <span>Monthly Limit Reached — Activate Key Above</span>
+                    <span>Monthly Limit Reached — Upgrade / Key Below</span>
                   </>
                 ) : (
                   <>
@@ -1890,7 +2469,6 @@ export default function PractitionerCapturePage() {
                         : 'border-[#232B38]'
                     }`}
                   >
-                    {/* Header Row: Ref, Patient, Status & Prominent PMS Account Number */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs font-bold text-[#00D2C6]">
@@ -1941,7 +2519,6 @@ export default function PractitionerCapturePage() {
                       </div>
                     </div>
 
-                    {/* Date, Time & Codes */}
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8B98AB]">
                       <span>{c.service_date}</span>
                       <span>·</span>
@@ -1976,7 +2553,6 @@ export default function PractitionerCapturePage() {
                         ))}
                     </div>
 
-                    {/* Clinical Notes & Previous Query Replies */}
                     {(parsedNotes.baseNotes ||
                       parsedNotes.resolutionReplies.length > 0) && (
                       <div className="p-3 rounded-lg bg-[#14181F] border border-[#232B38] space-y-1.5 text-xs">
@@ -1999,7 +2575,6 @@ export default function PractitionerCapturePage() {
                       </div>
                     )}
 
-                    {/* Actionable Medical Bureau Query Box */}
                     {c.status === 'QUERIED' && (
                       <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-400/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="space-y-1">
