@@ -72,7 +72,7 @@ import {
   type SelectedTariff,
 } from '@/data/discipline075';
 
-interface CaseRecord {
+interface RawCaseRow {
   id: string;
   case_ref: string;
   patient_first_name: string;
@@ -98,6 +98,16 @@ interface CaseRecord {
   office_query_note: string | null;
   billed_invoice_ref: string | null;
   created_at: string;
+  updated_at?: string | null;
+  billed_at?: string | null;
+  queried_at?: string | null;
+  referred_at?: string | null;
+}
+
+interface CaseRecord extends RawCaseRow {
+  submitted_date_formatted: string;
+  billed_date_formatted: string | null;
+  referred_date_formatted: string | null;
 }
 
 interface CustomCodeBasket {
@@ -173,6 +183,29 @@ const DEFAULT_FILTERS_TEMPLATE: FilterItemEntry[] = [
 ];
 
 const CASES_PER_PAGE = 25;
+
+function formatSastDate(rawValue?: string | null): string | null {
+  if (!rawValue) return null;
+  const trimmed = rawValue.trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return trimmed.slice(0, 10);
+  }
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Johannesburg',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(parsed);
+  } catch {
+    return parsed.toISOString().slice(0, 10);
+  }
+}
 
 export default function PractitionerCapturePage() {
   const router = useRouter();
@@ -360,6 +393,10 @@ export default function PractitionerCapturePage() {
         : '';
       const haystack = [
         c.case_ref,
+        c.service_date,
+        c.submitted_date_formatted,
+        c.billed_date_formatted,
+        c.referred_date_formatted,
         c.patient_first_name,
         c.patient_surname,
         c.medical_aid_name,
@@ -444,9 +481,7 @@ export default function PractitionerCapturePage() {
 
       const { data, error } = await supabase
         .from('cases')
-        .select(
-          'id, case_ref, patient_first_name, patient_surname, medical_aid_name, medical_aid_number, dependent_code, patient_cellphone, facility_name, sticker_storage_path, service_date, referring_surgeon, start_time, end_time, duration_minutes, calculated_time_units, primary_icd10, primary_icd10_desc, secondary_icd10, tariffs, clinical_notes, status, office_query_note, billed_invoice_ref, created_at'
-        )
+        .select('*')
         .eq('client_id', uid)
         .order('service_date', { ascending: false })
         .order('created_at', { ascending: false })
@@ -454,9 +489,65 @@ export default function PractitionerCapturePage() {
 
       if (error) {
         setCasesError(error.message);
-      } else {
-        setCases((data as CaseRecord[]) || []);
+        setCasesLoading(false);
+        return;
       }
+
+      const rawRows = (data as RawCaseRow[]) || [];
+      const caseIds = rawRows.map((r) => r.id);
+
+      const latestBilledAuditByCase = new Map<string, string>();
+      const latestReferredAuditByCase = new Map<string, string>();
+
+      if (caseIds.length > 0) {
+        const { data: auditRows } = await supabase
+          .from('case_audit_logs')
+          .select('case_id, action, created_at')
+          .in('case_id', caseIds)
+          .order('created_at', { ascending: false });
+
+        if (Array.isArray(auditRows)) {
+          for (const log of auditRows) {
+            const actionUpper = String(log.action || '').toUpperCase();
+            if (
+              actionUpper.includes('BILL') &&
+              !latestBilledAuditByCase.has(log.case_id)
+            ) {
+              latestBilledAuditByCase.set(log.case_id, log.created_at);
+            }
+            if (
+              (actionUpper.includes('QUER') || actionUpper.includes('REFER')) &&
+              !latestReferredAuditByCase.has(log.case_id)
+            ) {
+              latestReferredAuditByCase.set(log.case_id, log.created_at);
+            }
+          }
+        }
+      }
+
+      const enriched: CaseRecord[] = rawRows.map((row) => {
+        const submittedDate = formatSastDate(row.created_at) || row.service_date;
+
+        const rawBilledTs =
+          row.billed_at ||
+          latestBilledAuditByCase.get(row.id) ||
+          (row.status === 'BILLED' ? row.updated_at || row.created_at : null);
+
+        const rawReferredTs =
+          row.queried_at ||
+          row.referred_at ||
+          latestReferredAuditByCase.get(row.id) ||
+          (row.status === 'QUERIED' ? row.updated_at || row.created_at : null);
+
+        return {
+          ...row,
+          submitted_date_formatted: submittedDate,
+          billed_date_formatted: formatSastDate(rawBilledTs),
+          referred_date_formatted: formatSastDate(rawReferredTs),
+        };
+      });
+
+      setCases(enriched);
       setCasesLoading(false);
     },
     [supabase]
@@ -800,8 +891,11 @@ export default function PractitionerCapturePage() {
     const headers = [
       'Case Ref',
       'Status',
-      'PMS Account / Invoice Ref',
       'Service Date',
+      'Submitted Date',
+      'Billed Date',
+      'Referred Date',
+      'PMS Account / Invoice Ref',
       'Start Time',
       'End Time',
       'Duration (min)',
@@ -828,17 +922,18 @@ export default function PractitionerCapturePage() {
 
     const rows = filteredDashboardCases.map((c) => {
       const statusLabel =
-        c.status === 'QUERIED'
-          ? 'REFERRED / QUERIED'
-          : c.status;
+        c.status === 'QUERIED' ? 'REFERRED / QUERIED' : c.status;
       const tariffs = Array.isArray(c.tariffs)
         ? c.tariffs.map((t) => `${t.procedure_code}x${t.units}`).join('; ')
         : '';
       return [
         c.case_ref,
         statusLabel,
-        c.billed_invoice_ref || '',
         c.service_date,
+        c.submitted_date_formatted,
+        c.billed_date_formatted || '',
+        c.referred_date_formatted || '',
+        c.billed_invoice_ref || '',
         c.start_time?.slice(0, 5) || '',
         c.end_time?.slice(0, 5) || '',
         c.duration_minutes,
@@ -3492,7 +3587,7 @@ export default function PractitionerCapturePage() {
                 type="text"
                 value={dashboardSearch}
                 onChange={(e) => setDashboardSearch(e.target.value)}
-                placeholder="Search by patient name, surname, case ref, PMS account #, medical aid, surgeon, hospital, ICD-10 or tariff..."
+                placeholder="Search by patient name, case ref, service/billed/referred date, PMS account #, medical aid, surgeon, hospital, ICD-10 or tariff..."
                 className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#0E1218] border border-[#232B38] focus:border-[#00D2C6] focus:outline-none text-sm text-white placeholder-[#4E5B6E]"
               />
               {dashboardSearch && (
@@ -3619,13 +3714,50 @@ export default function PractitionerCapturePage() {
                       </div>
                     </div>
 
-                    {/* Compact Meta Line: Date, Duration, Scheme, Hospital, ICD & Tariffs */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[#8B98AB]">
-                        <span className="font-mono text-[#C5D0DF]">
+                    {/* Explicit Date Badges per Item: Service Date + Billed Date / Referred Date / Submitted Date */}
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#14181F] border border-[#2C3545] text-[#E2E8F0]">
+                        <Calendar className="w-3 h-3 text-[#00D2C6]" />
+                        <span className="text-[#8B98AB]">Service:</span>
+                        <span className="font-bold text-white">
                           {c.service_date}
                         </span>
-                        <span>·</span>
+                      </span>
+
+                      {c.status === 'BILLED' && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/12 border border-emerald-400/35 text-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-300" />
+                          <span className="text-emerald-300/80">Billed:</span>
+                          <span className="font-bold">
+                            {c.billed_date_formatted || c.submitted_date_formatted}
+                          </span>
+                        </span>
+                      )}
+
+                      {c.status === 'QUERIED' && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/12 border border-amber-400/35 text-amber-200">
+                          <AlertTriangle className="w-3 h-3 text-amber-300" />
+                          <span className="text-amber-300/80">Referred:</span>
+                          <span className="font-bold">
+                            {c.referred_date_formatted || c.submitted_date_formatted}
+                          </span>
+                        </span>
+                      )}
+
+                      {c.status === 'SUBMITTED' && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#1D7AFC]/12 border border-[#1D7AFC]/30 text-[#CFE2FF]">
+                          <Clock className="w-3 h-3 text-[#7FB3FF]" />
+                          <span className="text-[#7FB3FF]">Submitted:</span>
+                          <span className="font-bold">
+                            {c.submitted_date_formatted}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Compact Meta Line: Duration, Scheme, Hospital, ICD & Tariffs */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[#8B98AB]">
                         <span>
                           {c.start_time?.slice(0, 5)}–{c.end_time?.slice(0, 5)} (
                           {c.duration_minutes}m)
@@ -3676,7 +3808,7 @@ export default function PractitionerCapturePage() {
                       <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-400/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="space-y-0.5">
                           <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300 block">
-                            Referred Back · Medical Bureau Query
+                            Referred Back on {c.referred_date_formatted || c.submitted_date_formatted} · Medical Bureau Query
                           </span>
                           <p className="text-xs sm:text-sm font-semibold text-amber-100">
                             {c.office_query_note ||
