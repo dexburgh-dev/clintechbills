@@ -1,7 +1,13 @@
 export interface ProcedureItem {
   procedure_code: string;
   procedure_description: string;
-  category?: 'PERFUSION' | 'CRITICAL_CARE' | 'CARDIAC_RHYTHM' | 'NEURO' | 'PULMONOLOGY' | 'MODIFIER';
+  category?:
+    | 'PERFUSION'
+    | 'CATH_LAB'
+    | 'CARDIAC_RHYTHM'
+    | 'CRITICAL_CARE'
+    | 'DIAGNOSTICS'
+    | 'MODIFIER';
   is_time_addon?: boolean;
   paired_base_code?: string;
 }
@@ -44,135 +50,227 @@ export interface CodingGuardrailAlert {
 
 export const DISCIPLINE_075_PROCEDURES: ProcedureItem[] = [
   {
-    procedure_code: '75003',
-    procedure_description:
-      'Emergency after-hours callout / unscheduled theatre or ICU attendance (18:00–07:00 weekdays, weekends & public holidays)',
-    category: 'MODIFIER',
-  },
-  {
     procedure_code: '75011',
     procedure_description:
-      'Continuous Renal Replacement Therapy (CRRT) / Acute Haemodialysis: Initiation, priming & first hour',
-    category: 'CRITICAL_CARE',
+      'AM PREPARATION OF EXTRA-CORPOREAL EQUIPMENT FOR SURGICAL PROCEDURES.',
+    category: 'PERFUSION',
   },
   {
     procedure_code: '75013',
     procedure_description:
-      'CRRT / Acute Haemodialysis: Each subsequent 30 minutes or major part thereof after first hour',
-    category: 'CRITICAL_CARE',
+      'AM CONTINUED OPERATION OF EXTRA-CORPOREAL EQUIPMENT DURING SURGERY FOR A TIME IN EXCESS OF ONE HOUR IN 30 MINUTE INCREMENTS',
+    category: 'PERFUSION',
     is_time_addon: true,
     paired_base_code: '75011',
   },
   {
+    procedure_code: '75014',
+    procedure_description: 'PM RADIOFREQUENCY CATHETER ABLATIONS',
+    category: 'CARDIAC_RHYTHM',
+  },
+  {
+    procedure_code: '75015',
+    procedure_description:
+      'AM PREPARATION AND OPERATION OF PRE-OPERATIVE, INTRA-OPERATIVE OR POST OPERATIVE PHYSIOLOGICAL MONITORING PER PATIENT, PER PROCEDURE',
+    category: 'CRITICAL_CARE',
+  },
+  {
     procedure_code: '75021',
     procedure_description:
-      'Pacemaker / ICD / CRT interrogation, threshold testing & programming (in-theatre or ward)',
-    category: 'CARDIAC_RHYTHM',
+      'PM PREPARATION AND OPERATION OF INTRA-AORTIC BALLOON PUMP IN THEATRE, INTENSIVE CARE UNIT AND CATHETERISATION LABORATORY',
+    category: 'PERFUSION',
   },
   {
-    procedure_code: '75023',
+    procedure_code: '75027',
     procedure_description:
-      'Permanent Pacemaker / ICD implantation: Intra-operative electrophysiological & pacing support',
-    category: 'CARDIAC_RHYTHM',
+      'AM PREPARATION AND OPERATION OF A PRE- AND POST-OPERATIVE BLOOD SALVAGE DEVICE.',
+    category: 'PERFUSION',
   },
   {
-    procedure_code: '75025',
+    procedure_code: '75029',
     procedure_description:
-      'Electrophysiology (EP) study / Radiofrequency ablation technical mapping support',
-    category: 'CARDIAC_RHYTHM',
+      'PM PREPARATION AND OPERATION OF AN AUTOTRANSFUSION CELL WASHING SYSTEM.',
+    category: 'PERFUSION',
   },
   {
     procedure_code: '75031',
     procedure_description:
-      'Complete Pulmonary Function Testing (Spirometry, Lung Volumes & DLCO)',
-    category: 'PULMONOLOGY',
+      'AM DETERMINATION AND MONITORING OF HAEMODYNAMIC/PULMONARY PARAMETERS, METABOLISM, ARTERIAL/VENOUS PRESSURE FLOW STUDIES',
+    category: 'CRITICAL_CARE',
   },
   {
-    procedure_code: '75041',
+    procedure_code: '75033',
     procedure_description:
-      'Intra-operative Neurophysiological Monitoring (IONM / SSEP / MEP): Setup & first hour',
-    category: 'NEURO',
+      'AM ASSISTANCE WITH BRONCHOSCOPY PROCEDURES, PLACEMENT OF ARTERIAL/VENOUS CATHETERS, ULTRASOUND EXAMINATIONS OR PHOTOGRAPHY',
+    category: 'CRITICAL_CARE',
   },
   {
-    procedure_code: '75043',
-    procedure_description:
-      'Intra-operative Neurophysiological Monitoring (IONM): Each subsequent 30 minutes after first hour',
-    category: 'NEURO',
-    is_time_addon: true,
-    paired_base_code: '75041',
+    procedure_code: '75049',
+    procedure_description: 'AM EXERCISE TESTING (EIA).',
+    category: 'DIAGNOSTICS',
   },
   {
-    procedure_code: '75051',
-    procedure_description:
-      'Full Polysomnography / Diagnostic Sleep Study technical setup & scoring',
-    category: 'PULMONOLOGY',
+    procedure_code: '75062',
+    procedure_description: 'ASSIST IN PREP AND OP OF RROTABLATOR PROCEDURE',
+    category: 'CATH_LAB',
   },
   {
     procedure_code: '75063',
-    procedure_description:
-      'Cardiopulmonary Bypass (Heart-Lung Machine): Setup, priming & first hour of perfusion',
-    category: 'PERFUSION',
+    procedure_description: 'CARDIAC CATH FOR FIRST HOUR',
+    category: 'CATH_LAB',
+  },
+  {
+    procedure_code: '75064',
+    procedure_description: 'INTRAVASCULA ULTRASOUND',
+    category: 'CATH_LAB',
   },
   {
     procedure_code: '75065',
     procedure_description:
-      'Cardiopulmonary Bypass: Each subsequent 30 minutes or major part thereof after first hour',
-    category: 'PERFUSION',
+      'EACH ADDITIONAL 30 MIN OR PART THEREOF PROVIDED PART IS 50% OR MORE OF TIME',
+    category: 'CATH_LAB',
     is_time_addon: true,
     paired_base_code: '75063',
   },
   {
+    procedure_code: '75066',
+    procedure_description:
+      'EACH ADDITIONAL 30 MIN OR PART THEREOF PROVIDED PART IS 50% OR MORE OF TIME',
+    category: 'CATH_LAB',
+    is_time_addon: true,
+    paired_base_code: '75068',
+  },
+  {
     procedure_code: '75067',
     procedure_description:
-      'Paediatric / Neonatal Cardiopulmonary Bypass: Setup, priming & first hour',
-    category: 'PERFUSION',
+      'CARDIAC ELECTRO PHYSIOLOGY AND RELATED PROCEDURES FOR FIRST FOUR HOURS',
+    category: 'CARDIAC_RHYTHM',
   },
   {
     procedure_code: '75068',
-    procedure_description:
-      'Paediatric / Neonatal Cardiopulmonary Bypass: Each subsequent 30 minutes after first hour',
-    category: 'PERFUSION',
-    is_time_addon: true,
-    paired_base_code: '75067',
+    procedure_description: 'CARDIAC CATH TIGHT HEART STUDIES',
+    category: 'CATH_LAB',
+  },
+  {
+    procedure_code: '75069',
+    procedure_description: 'TEMP AND SINGLE PACEMAKERS',
+    category: 'CARDIAC_RHYTHM',
   },
   {
     procedure_code: '75070',
     procedure_description:
-      'Modified Ultrafiltration (MUF) / Intra-operative haemofiltration during bypass',
-    category: 'PERFUSION',
+      'PERMANENT AND DUAL PACEMAKER PROCEDURE OR IMPLANTATION AND TESTING OF ICD DEVICES NOT CHARGED WITH 063 OR 065',
+    category: 'CARDIAC_RHYTHM',
   },
   {
     procedure_code: '75071',
     procedure_description:
-      'Left / Right Heart Bypass (Minimally Invasive / Thoracoabdominal): Subsequent 30 minutes',
-    category: 'PERFUSION',
+      'EACH ADDITIONAL 30 MIN OR PART THEREOF PROVIDED PART IS 50% OR MORE OF TIME',
+    category: 'CARDIAC_RHYTHM',
     is_time_addon: true,
+    paired_base_code: '75070',
+  },
+  {
+    procedure_code: '75072',
+    procedure_description: 'MULTISITE PACING (BI-VENTRICULAR PACING)',
+    category: 'CARDIAC_RHYTHM',
+  },
+  {
+    procedure_code: '75073',
+    procedure_description: 'DILITATION PROCEDURES AND STENTS',
+    category: 'CATH_LAB',
+  },
+  {
+    procedure_code: '75074',
+    procedure_description:
+      'WAVEMAP-MEASUREMENT OF FRACTIONAL FLOW RESERVE TO ASSESS THE FUNCTIONAL SEVERITY OF CORONARY ARTERY STENOSIS',
+    category: 'CATH_LAB',
   },
   {
     procedure_code: '75075',
-    procedure_description:
-      'Intra-Aortic Balloon Pump (IABP): Console setup, ECG/pressure triggering & initiation',
-    category: 'PERFUSION',
+    procedure_description: 'PACEMAKER CHECKING AND OR REPROGRAMMING',
+    category: 'CARDIAC_RHYTHM',
+  },
+  {
+    procedure_code: '75077',
+    procedure_description: '24 HOUR HOLTER AMBULATORY MONITORING',
+    category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75079',
-    procedure_description:
-      'Intra-operative Autotransfusion / Cell Saver blood salvage & washing',
-    category: 'PERFUSION',
+    procedure_description: 'CARDIAC EXCERSIZE STRESS TESTING',
+    category: 'DIAGNOSTICS',
   },
   {
-    procedure_code: '75083',
-    procedure_description:
-      'Extracorporeal Membrane Oxygenation (VA / VV ECMO): Circuit priming, cannulation support & first hour',
-    category: 'CRITICAL_CARE',
+    procedure_code: '75081',
+    procedure_description: 'RECORDING OF TWELVE LEAD ECG',
+    category: 'DIAGNOSTICS',
   },
   {
     procedure_code: '75085',
     procedure_description:
-      'Extracorporeal Membrane Oxygenation (ECMO): Each subsequent 30 minutes or major part thereof',
+      'AM EACH ADDITIONAL 30 MINUTES OR PART THEREOF, PROVIDED THAT SUCH PART COMPRISES 50% OR MORE OF THE TIME.',
     category: 'CRITICAL_CARE',
     is_time_addon: true,
-    paired_base_code: '75083',
+    paired_base_code: '75145',
+  },
+  {
+    procedure_code: '75087',
+    procedure_description: 'M MODE ECHOCARDIOGRAM',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75089',
+    procedure_description: '2D ECHOCARDIOGRAM',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75091',
+    procedure_description: 'DOPPLER FLOW',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75093',
+    procedure_description: 'COLOR IMAGING',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75095',
+    procedure_description: 'ECG SIGNAL AVERAGING',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75097',
+    procedure_description: 'AMBULATORY BLOOD PRESSURE MONITORING',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75099',
+    procedure_description: 'VECTOR CARDIOGRAM',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75111',
+    procedure_description: 'TRANSOESOPHAGEAL ECHOCARDIOGRAM',
+    category: 'DIAGNOSTICS',
+  },
+  {
+    procedure_code: '75145',
+    procedure_description:
+      'AM PREPARATION OF EXTRA-CORPOREAL EQUIPMENT: HAEMOPERFUSION (HP), HAEMOFILTRATION (HF), HAEMOCONCENTRATION (HC), CONTINUOUS RENAL REPLACEMENT THERAPY (CRRT)',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75149',
+    procedure_description:
+      'AM TREATMENT PROCEDURE PER 1 HOUR (EXCLUDING ACUTE HAEMODIALYSIS, CHRONIC HAEMODIALYSIS AND CRRT)',
+    category: 'CRITICAL_CARE',
+  },
+  {
+    procedure_code: '75157',
+    procedure_description:
+      'AM STANDBY WITH EXTRA CORPOREAL EQUIPMENT (MAXIMUM 4 HOURS) (PER EVENT).',
+    category: 'PERFUSION',
   },
 ];
 
@@ -192,70 +290,69 @@ export const DEFAULT_ICD10_CODES: Icd10Item[] = [
   { code: 'J96.0', description: 'Acute respiratory failure' },
   { code: 'Q21.0', description: 'Ventricular septal defect' },
   { code: 'Q21.1', description: 'Atrial septal defect' },
-  { code: 'M41.9', description: 'Scoliosis, unspecified (IONM spinal fusion)' },
   { code: 'G47.3', description: 'Sleep apnoea' },
   { code: 'J45.9', description: 'Asthma, unspecified' },
 ];
 
 export const CLINICAL_MACROS: ClinicalMacro[] = [
   {
-    id: 'cpb-standard',
+    id: 'cpb-cell-saver',
     label: 'CPB Bypass + Cell Saver',
-    subtitle: '75063 + 75065 (time) + 75079',
-    codes: ['75063', '75065', '75079'],
+    subtitle: '75011 + 75013 (time) + 75029',
+    codes: ['75011', '75013', '75029'],
     defaultIcd10: {
       code: 'I25.1',
       description: 'Atherosclerotic heart disease of native coronary artery',
     },
   },
   {
-    id: 'cpb-valve-muf',
-    label: 'Valve Bypass + MUF',
-    subtitle: '75063 + 75065 (time) + 75070 + 75079',
-    codes: ['75063', '75065', '75070', '75079'],
+    id: 'cpb-iabp',
+    label: 'CPB + Cell Saver + IABP',
+    subtitle: '75011 + 75013 (time) + 75029 + 75021',
+    codes: ['75011', '75013', '75029', '75021'],
     defaultIcd10: {
       code: 'I35.0',
       description: 'Nonrheumatic aortic (valve) stenosis',
     },
   },
   {
-    id: 'ecmo-init',
-    label: 'ECMO Initiation',
-    subtitle: '75083 + 75085 (time)',
-    codes: ['75083', '75085'],
+    id: 'cath-stent',
+    label: 'Cardiac Cath + Stents',
+    subtitle: '75063 + 75065 (time) + 75073',
+    codes: ['75063', '75065', '75073'],
     defaultIcd10: {
-      code: 'J80',
-      description: 'Acute respiratory distress syndrome (ARDS)',
+      code: 'I21.9',
+      description: 'Acute myocardial infarction, unspecified',
     },
   },
   {
-    id: 'crrt-icu',
-    label: 'ICU CRRT / Dialysis',
-    subtitle: '75011 + 75013 (time)',
-    codes: ['75011', '75013'],
-    defaultIcd10: {
-      code: 'N17.9',
-      description: 'Acute kidney failure, unspecified',
-    },
-  },
-  {
-    id: 'ppm-implant',
-    label: 'Pacemaker / ICD Implant',
-    subtitle: '75023 intra-op support',
-    codes: ['75023'],
+    id: 'ppm-dual-icd',
+    label: 'Dual Pacemaker / ICD',
+    subtitle: '75070 + 75071 (time)',
+    codes: ['75070', '75071'],
     defaultIcd10: {
       code: 'I44.2',
       description: 'Atrioventricular block, complete',
     },
   },
   {
-    id: 'ionm-spine',
-    label: 'IONM Neuro Monitoring',
-    subtitle: '75041 + 75043 (time)',
-    codes: ['75041', '75043'],
+    id: 'ep-ablation',
+    label: 'EP Study + RF Ablation',
+    subtitle: '75067 (First 4h) + 75014',
+    codes: ['75067', '75014'],
     defaultIcd10: {
-      code: 'M41.9',
-      description: 'Scoliosis, unspecified (IONM spinal fusion)',
+      code: 'I48.0',
+      description: 'Paroxysmal atrial fibrillation',
+    },
+  },
+  {
+    id: 'crrt-hf',
+    label: 'CRRT / Haemofiltration',
+    subtitle: '75145 + 75085 (time)',
+    codes: ['75145', '75085'],
+    defaultIcd10: {
+      code: 'N17.9',
+      description: 'Acute kidney failure, unspecified',
     },
   },
 ];
@@ -265,18 +362,37 @@ export const TIME_ADDON_PAIRINGS: Array<{
   addonCode: string;
   label: string;
 }> = [
-  { baseCode: '75063', addonCode: '75065', label: 'Cardiopulmonary Bypass (> 60m)' },
-  { baseCode: '75067', addonCode: '75068', label: 'Paediatric CPB (> 60m)' },
-  { baseCode: '75083', addonCode: '75085', label: 'ECMO Run (> 60m)' },
-  { baseCode: '75011', addonCode: '75013', label: 'CRRT / Haemodialysis (> 60m)' },
-  { baseCode: '75041', addonCode: '75043', label: 'IONM Monitoring (> 60m)' },
+  {
+    baseCode: '75011',
+    addonCode: '75013',
+    label: 'Extra-Corporeal Surgical Equipment (> 60m)',
+  },
+  {
+    baseCode: '75063',
+    addonCode: '75065',
+    label: 'Cardiac Catheterisation (> 60m)',
+  },
+  {
+    baseCode: '75068',
+    addonCode: '75066',
+    label: 'Cardiac Cath Right Heart Studies (> 60m)',
+  },
+  {
+    baseCode: '75070',
+    addonCode: '75071',
+    label: 'Permanent / Dual Pacemaker or ICD (> 60m)',
+  },
+  {
+    baseCode: '75145',
+    addonCode: '75085',
+    label: 'HP / HF / HC / CRRT Extra-Corporeal Run (> 60m)',
+  },
 ];
 
 export const ALL_TIME_ADDON_CODES = new Set([
   '75013',
-  '75043',
   '75065',
-  '75068',
+  '75066',
   '75071',
   '75085',
 ]);
@@ -315,8 +431,12 @@ export function calculateTheatreTiming(
 
   const durationMinutes = Math.max(0, endTotal - startTotal);
   const thirtyMinUnits = durationMinutes > 0 ? Math.ceil(durationMinutes / 30) : 0;
+  // Subsequent 30-min increments apply after first 60m (provided part is >= 50% i.e. >= 15 mins)
+  const extraMinutes = Math.max(0, durationMinutes - 60);
+  const fullBlocks = Math.floor(extraMinutes / 30);
+  const remainderMinutes = extraMinutes % 30;
   const extraThirtyMinAfterFirstHour =
-    durationMinutes > 60 ? Math.ceil((durationMinutes - 60) / 30) : 0;
+    extraMinutes > 0 ? fullBlocks + (remainderMinutes >= 15 ? 1 : 0) : 0;
 
   let isWeekend = false;
   if (serviceDate) {
@@ -362,7 +482,7 @@ export function evaluateDiscipline075Guardrails(params: {
     selectedTariffs.map((t) => [t.procedure_code, t])
   );
 
-  // 1. Check missing time add-on codes when duration > 60 minutes
+  // 1. Check missing time add-on codes when duration > 60 minutes (with >=15 min part rule)
   if (timing.extraThirtyMinAfterFirstHour > 0) {
     for (const pair of TIME_ADDON_PAIRINGS) {
       if (selectedMap.has(pair.baseCode) && !selectedMap.has(pair.addonCode)) {
@@ -397,16 +517,27 @@ export function evaluateDiscipline075Guardrails(params: {
     }
   }
 
-  // 3. Check After-Hours / Weekend modifier 75003
-  if (timing.isAfterHours && !selectedMap.has('75003')) {
+  // 3. Enforce tariff 75070 rule: NOT CHARGED WITH 75063 OR 75065
+  if (
+    selectedMap.has('75070') &&
+    (selectedMap.has('75063') || selectedMap.has('75065'))
+  ) {
     alerts.push({
-      id: 'after-hours-75003',
+      id: 'conflict-75070-063-065',
+      severity: 'warning',
+      title: 'Tariff Exclusion Conflict (75070 vs 75063/75065)',
+      detail:
+        'Per Discipline 075 rules, tariff 75070 (Permanent/Dual Pacemaker or ICD) may NOT be charged together with 75063 or 75065. Remove 75063/75065 or use 75071 for additional 30-min time.',
+    });
+  }
+
+  // 4. After-hours / weekend reminder
+  if (timing.isAfterHours) {
+    alerts.push({
+      id: 'after-hours-note',
       severity: 'info',
-      title: 'After-Hours / Weekend Eligible (75003)',
-      detail: `${timing.afterHoursReason}. If this was an unscheduled emergency callout, include tariff 75003.`,
-      fixActionLabel: 'Add 75003 Emergency Callout',
-      fixCode: '75003',
-      fixUnits: 1,
+      title: 'After-Hours / Weekend Case Detected',
+      detail: `${timing.afterHoursReason}. Verify whether after-hours motivation / emergency callout notes apply for the bureau.`,
     });
   }
 

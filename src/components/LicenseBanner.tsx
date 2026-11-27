@@ -1,92 +1,77 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  KeyRound,
-  ShieldCheck,
-  AlertTriangle,
   CheckCircle2,
   CreditCard,
+  KeyRound,
+  Sparkles,
   X,
 } from 'lucide-react';
 import type { LicenseEntitlementState } from '@/hooks/useLicenseEntitlement';
-import { PLAN_PRESETS } from '@/lib/licensing';
 
-export function LicenseBanner({
-  entitlement,
-  userEmail = '',
-  practiceName = '',
-}: {
+interface LicenseBannerProps {
   entitlement: LicenseEntitlementState;
-  userEmail?: string;
-  practiceName?: string;
-}) {
-  const [openModal, setOpenModal] = useState(false);
+}
+
+export function LicenseBanner({ entitlement }: LicenseBannerProps) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pillDismissed, setPillDismissed] = useState(false);
   const [keyInput, setKeyInput] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [checkoutTier, setCheckoutTier] = useState<string | null>(null);
-  const [billingEmail, setBillingEmail] = useState(userEmail);
-  const [feedback, setFeedback] = useState<{
-    type: 'ok' | 'err';
-    msg: string;
-  } | null>(null);
+  const [activating, setActivating] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; msg: string } | null>(
+    null
+  );
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
-  const {
-    license,
-    casesUsedThisMonth,
-    effectiveMonthlyLimit,
-    canSubmitCase,
-    blockReason,
-  } = entitlement;
+  const isStarter =
+    !entitlement.license ||
+    entitlement.license.license_key === 'MB-CTB-STARTER-FREE' ||
+    entitlement.effectiveMonthlyLimit !== null;
 
-  const preset = license
-    ? PLAN_PRESETS[license.plan_tier]
-    : PLAN_PRESETS.FREE_STARTER;
+  // Auto-open compact floating subscription card once right after new account signup (still closeable anytime)
+  useEffect(() => {
+    if (entitlement.loading) return;
+    if (typeof window === 'undefined') return;
+
+    const justSignedUp = sessionStorage.getItem('clintechbills_new_signup_prompt');
+    if (justSignedUp === '1' && isStarter) {
+      sessionStorage.removeItem('clintechbills_new_signup_prompt');
+      setModalOpen(true);
+    }
+  }, [entitlement.loading, isStarter]);
 
   async function handleActivate(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
+    setActivating(true);
     setFeedback(null);
+
     const res = await entitlement.activateLicenseKey(keyInput);
-    setSubmitting(false);
-    if (res.ok) {
-      setFeedback({
-        type: 'ok',
-        msg: 'Licence activated! Unlimited/updated tier applied.',
-      });
+    setActivating(false);
+
+    if (!res.ok) {
+      setFeedback({ type: 'err', msg: res.error || 'Invalid licence key.' });
+    } else {
+      setFeedback({ type: 'ok', msg: 'Licence activated.' });
       setKeyInput('');
       setTimeout(() => {
-        setOpenModal(false);
+        setModalOpen(false);
         setFeedback(null);
-      }, 1100);
-    } else {
-      setFeedback({
-        type: 'err',
-        msg: res.error || 'Invalid licence key.',
-      });
+      }, 800);
     }
   }
 
-  async function handlePayFastUpgrade(tier: 'PRO_PAID' | 'GROUP_PAID') {
-    const emailToUse = (billingEmail || userEmail || license?.contact_email || '').trim();
-    if (!emailToUse) {
-      setFeedback({
-        type: 'err',
-        msg: 'Enter your billing email address below so PayFast can send your receipt & licence key.',
-      });
-      return;
-    }
-
-    setCheckoutTier(tier);
-    setFeedback(null);
+  async function handleCheckout(planTier: 'PRO_PAID' | 'GROUP_PAID') {
+    setCheckoutLoading(planTier);
     try {
       const res = await fetch('/api/payfast/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planTier: tier,
-          practiceName: practiceName || license?.practice_name || 'ClinTech Practice',
-          contactEmail: emailToUse,
+          planTier,
+          practiceName:
+            entitlement.license?.practice_name || 'Clinical Technology (075)',
+          contactEmail: entitlement.license?.contact_email || '',
           licenseKey: entitlement.activeKey,
         }),
       });
@@ -94,163 +79,130 @@ export function LicenseBanner({
       if (!res.ok || !json.checkoutUrl) {
         setFeedback({
           type: 'err',
-          msg: json.error || 'Unable to start PayFast checkout.',
+          msg: json.error || 'Could not start PayFast checkout.',
         });
         return;
       }
       window.location.href = json.checkoutUrl;
     } finally {
-      setCheckoutTier(null);
+      setCheckoutLoading(null);
     }
   }
 
+  if (entitlement.loading) return null;
+
   return (
     <>
-      <div
-        className={`rounded-2xl border px-4 py-3 text-xs transition-colors ${
-          !canSubmitCase
-            ? 'border-rose-500/50 bg-rose-950/30 text-rose-200'
-            : 'border-[#232B38] bg-[#14181F] text-[#C5D0DF]'
-        }`}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5">
-            {canSubmitCase ? (
-              <ShieldCheck className="h-4 w-4 shrink-0 text-[#00D2C6]" />
-            ) : (
-              <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-white">
-                {license?.practice_name || 'Starter Practice'}
-              </span>
-              <span
-                className={`inline-block rounded border px-2 py-0.5 text-[10px] font-mono font-semibold ${preset.badgeColor}`}
-              >
-                {preset.label}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px] text-[#8B98AB]">
-              {entitlement.loading
-                ? 'Checking licence...'
-                : effectiveMonthlyLimit === null
-                ? `${casesUsedThisMonth} cases (Unlimited)`
-                : `${casesUsedThisMonth} / ${effectiveMonthlyLimit} cases this month`}
+      {/* Discreet Floating Bottom-Right Pill (Dismissible with X, never crowds header) */}
+      {!pillDismissed && (
+        <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-[#2C3545] bg-[#11151C]/95 pl-3.5 pr-2 py-1.5 shadow-2xl backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 text-left"
+          >
+            <span className="h-2 w-2 rounded-full bg-[#00D2C6]" />
+            <span className="font-mono text-[11px] font-bold text-white">
+              {isStarter
+                ? `Starter (${entitlement.casesUsedThisMonth}/${entitlement.effectiveMonthlyLimit ?? 15})`
+                : entitlement.license?.plan_tier}
             </span>
+            <span className="rounded-full bg-[#00D2C6]/15 border border-[#00D2C6]/35 px-2 py-0.5 font-mono text-[10px] font-bold text-[#00D2C6] hover:bg-[#00D2C6] hover:text-[#08080B] transition">
+              {isStarter ? 'Upgrade / Key' : 'Licence'}
+            </span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setOpenModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#00D2C6]/40 bg-[#00D2C6]/10 px-2.5 py-1 text-[11px] font-bold text-[#00D2C6] hover:bg-[#00D2C6]/20 transition"
-            >
-              <KeyRound className="h-3 w-3" />
-              {license?.plan_tier === 'FREE_STARTER'
-                ? 'Upgrade / Key'
-                : 'Manage Plan'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setPillDismissed(true)}
+            aria-label="Hide plan pill"
+            className="rounded-full p-1 text-[#6A7689] hover:bg-[#1B212B] hover:text-white transition"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
+      )}
 
-        {!canSubmitCase && blockReason && (
-          <p className="mt-2.5 border-t border-rose-500/30 pt-2 text-[11px] text-rose-300">
-            {blockReason}
-          </p>
-        )}
-      </div>
-
-      {openModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-[#2C3545] bg-[#14181F] p-5 shadow-2xl space-y-5">
+      {/* Closeable Floating Subscription & Key Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-[#2C3545] bg-[#14181F] p-5 sm:p-6 shadow-2xl space-y-5 relative">
             <div className="flex items-center justify-between border-b border-[#232B38] pb-3">
               <div className="flex items-center gap-2">
-                <KeyRound className="h-4 w-4 text-[#00D2C6]" />
-                <h3 className="font-[family-name:var(--font-montserrat)] text-sm font-bold text-white">
-                  MediBurgh Practice Subscription &amp; Licence
+                <Sparkles className="h-4 w-4 text-[#00D2C6]" />
+                <h3 className="font-[family-name:var(--font-montserrat)] text-sm sm:text-base font-bold text-white">
+                  Plan &amp; Medical Bureau Key
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setOpenModal(false)}
-                className="rounded-lg p-1 text-[#8B98AB] hover:bg-[#1B212B] hover:text-white"
+                onClick={() => setModalOpen(false)}
+                aria-label="Close subscription dialog"
+                className="rounded-lg p-1.5 text-[#8B98AB] hover:bg-[#1B212B] hover:text-white transition"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Section 1: Activate Existing Key */}
-            <form onSubmit={handleActivate} className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8B98AB]">
-                  Have a Licence Key? Activate Here
-                </label>
-                <div className="mt-1.5 flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="MB-CTB-XXXX-XXXX"
-                    value={keyInput}
-                    onChange={(e) => setKeyInput(e.target.value.toUpperCase())}
-                    className="flex-1 h-11 rounded-xl border border-[#232B38] bg-[#0E1218] px-3.5 font-mono text-sm uppercase tracking-wider text-white placeholder-[#4E5B6E] focus:border-[#00D2C6] focus:outline-none"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="rounded-xl bg-[#00D2C6] px-4 text-xs font-extrabold text-[#090B0E] hover:bg-[#00E5D8] disabled:opacity-50"
-                  >
-                    {submitting ? 'Verifying...' : 'Activate'}
-                  </button>
-                </div>
-                <p className="mt-1.5 text-[11px] text-[#8B98AB]">
-                  Current key:{' '}
-                  <span className="font-mono text-[#00D2C6]">
-                    {entitlement.activeKey}
-                  </span>
-                </p>
+            {/* Enter Bureau or Pro Key */}
+            <form onSubmit={handleActivate} className="space-y-2.5">
+              <label className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-[#8B98AB]">
+                <KeyRound className="h-3.5 w-3.5 text-[#00D2C6]" />
+                <span>Have a Bureau or Pro Key? Activate Here</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={keyInput}
+                  onChange={(e) => setKeyInput(e.target.value.toUpperCase())}
+                  placeholder="MB-CTB-XXXX-XXXX"
+                  className="flex-1 h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 font-mono text-xs uppercase tracking-wider text-white placeholder-[#4E5B6E] focus:border-[#00D2C6] focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={activating || !keyInput.trim()}
+                  className="rounded-xl bg-[#00D2C6] px-4 text-xs font-extrabold text-[#08080B] hover:bg-[#00E5D8] disabled:opacity-50"
+                >
+                  {activating ? 'Linking...' : 'Activate'}
+                </button>
               </div>
+              {feedback && (
+                <p
+                  className={`text-xs ${
+                    feedback.type === 'ok' ? 'text-emerald-300' : 'text-rose-300'
+                  }`}
+                >
+                  {feedback.msg}
+                </p>
+              )}
             </form>
 
-            {/* Section 2: Instant ZAR Subscription via PayFast */}
+            {/* Optional Subscription Plans */}
             <div className="border-t border-[#232B38] pt-4 space-y-3">
-              <span className="block text-[11px] font-mono uppercase tracking-wider text-[#00D2C6]">
-                Or Subscribe Online (Card, Instant EFT, Apple Pay)
-              </span>
-
-              <div>
-                <label className="block text-[10px] font-mono uppercase text-[#8B98AB] mb-1">
-                  Billing Receipt Email
-                </label>
-                <input
-                  type="email"
-                  placeholder="doctor@practice.co.za"
-                  value={billingEmail}
-                  onChange={(e) => setBillingEmail(e.target.value)}
-                  className="w-full h-10 rounded-xl border border-[#232B38] bg-[#0E1218] px-3 text-xs text-white placeholder-[#4E5B6E] focus:border-[#00D2C6] focus:outline-none"
-                />
-              </div>
+              <p className="font-mono text-[10px] uppercase tracking-wider text-[#8B98AB]">
+                Or Upgrade for Unlimited Captures (Optional)
+              </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-xl border border-[#232B38] bg-[#0E1218] p-3.5 flex flex-col justify-between space-y-3">
                   <div>
                     <p className="text-xs font-bold text-white">Pro Practitioner</p>
-                    <p className="mt-1 font-mono text-base font-extrabold text-[#00D2C6]">
+                    <p className="mt-0.5 font-mono text-sm font-extrabold text-[#00D2C6]">
                       R495 / mo
                     </p>
                     <p className="mt-1 text-[11px] text-[#8B98AB]">
-                      1 ClinTech + 2 Admin seats · Unlimited cases &amp; CSV exports
+                      Unlimited cases + AI Sticker OCR
                     </p>
                   </div>
                   <button
                     type="button"
-                    disabled={checkoutTier !== null}
-                    onClick={() => handlePayFastUpgrade('PRO_PAID')}
-                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00D2C6]/15 hover:bg-[#00D2C6] border border-[#00D2C6]/40 py-2 text-xs font-extrabold text-[#00D2C6] hover:text-[#08080B] transition disabled:opacity-50"
+                    disabled={checkoutLoading !== null}
+                    onClick={() => handleCheckout('PRO_PAID')}
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00D2C6]/15 hover:bg-[#00D2C6] border border-[#00D2C6]/40 py-2 text-[11px] font-extrabold text-[#00D2C6] hover:text-[#08080B] transition disabled:opacity-50"
                   >
                     <CreditCard className="h-3.5 w-3.5" />
                     <span>
-                      {checkoutTier === 'PRO_PAID' ? 'Connecting...' : 'Upgrade Pro'}
+                      {checkoutLoading === 'PRO_PAID' ? 'Connecting...' : 'Subscribe'}
                     </span>
                   </button>
                 </div>
@@ -258,44 +210,42 @@ export function LicenseBanner({
                 <div className="rounded-xl border border-[#232B38] bg-[#0E1218] p-3.5 flex flex-col justify-between space-y-3">
                   <div>
                     <p className="text-xs font-bold text-white">Practice Group</p>
-                    <p className="mt-1 font-mono text-base font-extrabold text-indigo-300">
+                    <p className="mt-0.5 font-mono text-sm font-extrabold text-[#00D2C6]">
                       R1,195 / mo
                     </p>
                     <p className="mt-1 text-[11px] text-[#8B98AB]">
-                      Up to 5 ClinTechs + 3 Admin seats · Shared surgeon lists
+                      Up to 5 ClinTech seats + shared queue
                     </p>
                   </div>
                   <button
                     type="button"
-                    disabled={checkoutTier !== null}
-                    onClick={() => handlePayFastUpgrade('GROUP_PAID')}
-                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500 border border-indigo-400/40 py-2 text-xs font-extrabold text-indigo-300 hover:text-white transition disabled:opacity-50"
+                    disabled={checkoutLoading !== null}
+                    onClick={() => handleCheckout('GROUP_PAID')}
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00D2C6]/15 hover:bg-[#00D2C6] border border-[#00D2C6]/40 py-2 text-[11px] font-extrabold text-[#00D2C6] hover:text-[#08080B] transition disabled:opacity-50"
                   >
                     <CreditCard className="h-3.5 w-3.5" />
                     <span>
-                      {checkoutTier === 'GROUP_PAID'
-                        ? 'Connecting...'
-                        : 'Upgrade Group'}
+                      {checkoutLoading === 'GROUP_PAID' ? 'Connecting...' : 'Subscribe'}
                     </span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {feedback && (
-              <div
-                className={`flex items-center gap-2 rounded-xl border p-3 text-xs ${
-                  feedback.type === 'ok'
-                    ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300'
-                    : 'border-rose-500/40 bg-rose-950/40 text-rose-300'
-                }`}
+            {/* Dismiss / Continue on Free Starter */}
+            <div className="border-t border-[#232B38] pt-3 flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-[#8B98AB]">
+                <CheckCircle2 className="h-3.5 w-3.5 text-[#00D2C6]" />
+                Starter includes 15 free cases/month
+              </span>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="rounded-xl border border-[#2C3545] bg-[#1B212B] px-3.5 py-1.5 text-xs font-semibold text-white hover:border-[#00D2C6] transition"
               >
-                {feedback.type === 'ok' && (
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                )}
-                <span>{feedback.msg}</span>
-              </div>
-            )}
+                Continue Free →
+              </button>
+            </div>
           </div>
         </div>
       )}

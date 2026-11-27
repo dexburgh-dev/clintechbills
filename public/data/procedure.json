@@ -1,1 +1,158 @@
-[]
+[
+  {
+    "procedure_code": "75011",
+    "procedure_description": "AM PREPARATION OF EXTRA-CORPOREAL EQUIPMENT FOR SURGICAL PROCEDURES."
+  },
+  {
+    "procedure_code": "75013",
+    "procedure_description": "AM CONTINUED OPERATION OF EXTRA-CORPOREAL EQUIPMENT DURING SURGERY FOR A TIME IN EXCESS OF ONE HOUR IN 30 MINUTE INCREMENTS"
+  },
+  {
+    "procedure_code": "75014",
+    "procedure_description": "PM RADIOFREQUENCY CATHETER ABLATIONS"
+  },
+  {
+    "procedure_code": "75015",
+    "procedure_description": "AM PREPARATION AND OPERATION OF PRE-OPERATIVE, INTRA-OPERATIVE OR POST OPERATIVE PHYSIOLOGICAL MONITORING PER PATIENT, PER PROCEDURE"
+  },
+  {
+    "procedure_code": "75021",
+    "procedure_description": "PM PREPARATION AND OPERATION OF INTRA-AORTIC BALLOON PUMP IN THEATRE, INTENSIVE CARE UNIT AND CATHETERISATION LABORATORY"
+  },
+  {
+    "procedure_code": "75027",
+    "procedure_description": "AM PREPARATION AND OPERATION OF A PRE- AND POST-OPERATIVE BLOOD SALVAGE DEVICE."
+  },
+  {
+    "procedure_code": "75029",
+    "procedure_description": "PM PREPARATION AND OPERATION OF AN AUTOTRANSFUSION CELL WASHING SYSTEM."
+  },
+  {
+    "procedure_code": "75031",
+    "procedure_description": "AM DETERMINATION AND MONITORING OF HAEMODYNAMIC/PULMONARY PARAMETERS, METABOLISM, ARTERIAL/VENOUS PRESSURE FLOW STUDIES"
+  },
+  {
+    "procedure_code": "75033",
+    "procedure_description": "AM ASSISTANCE WITH BRONCHOSCOPY PROCEDURES, PLACEMENT OF ARTERIAL/VENOUS CATHETERS, ULTRASOUND EXAMINATIONS OR PHOTOGRAPHY"
+  },
+  {
+    "procedure_code": "75049",
+    "procedure_description": "AM EXERCISE TESTING (EIA)."
+  },
+  {
+    "procedure_code": "75062",
+    "procedure_description": "ASSIST IN PREP AND OP OF RROTABLATOR PROCEDURE"
+  },
+  {
+    "procedure_code": "75063",
+    "procedure_description": "CARDIAC CATH FOR FIRST HOUR"
+  },
+  {
+    "procedure_code": "75064",
+    "procedure_description": "INTRAVASCULA ULTRASOUND"
+  },
+  {
+    "procedure_code": "75065",
+    "procedure_description": "EACH ADDITIONAL 30 MIN OR PART THEREOF PROVIDED PART IS 50% OR MORE OF TIME"
+  },
+  {
+    "procedure_code": "75066",
+    "procedure_description": "EACH ADDITIONAL 30 MIN OR PART THEREOF PROVIDED PART IS 50% OR MORE OF TIME"
+  },
+  {
+    "procedure_code": "75067",
+    "procedure_description": "CARDIAC ELECTRO PHYSIOLOGY AND RELATED PROCEDURES FOR FIRST FOUR HOURS"
+  },
+  {
+    "procedure_code": "75068",
+    "procedure_description": "CARDIAC CATH TIGHT HEART STUDIES"
+  },
+  {
+    "procedure_code": "75069",
+    "procedure_description": "TEMP AND SINGLE PACEMAKERS"
+  },
+  {
+    "procedure_code": "75070",
+    "procedure_description": "PERMANENT AND DUAL PACEMAKER PROCEDURE OR IMPLANTATION AND TESTING OF ICD DEVICES NOT CHARGED WITH 063 OR 065"
+  },
+  {
+    "procedure_code": "75071",
+    "procedure_description": "EACH ADDITIONAL 30 MIN OR PART THEREOF PROVIDED PART IS 50% OR MORE OF TIME"
+  },
+  {
+    "procedure_code": "75072",
+    "procedure_description": "MULTISITE PACING (BI-VENTRICULAR PACING)"
+  },
+  {
+    "procedure_code": "75073",
+    "procedure_description": "DILITATION PROCEDURES AND STENTS"
+  },
+  {
+    "procedure_code": "75074",
+    "procedure_description": "WAVEMAP-MEASUREMENT OF FRACTIONAL FLOW RESERVE TO ASSESS THE FUNCTIONAL SEVERITY OF CORONARY ARTERY STENOSIS"
+  },
+  {
+    "procedure_code": "75075",
+    "procedure_description": "PACEMAKER CHECKING AND OR REPROGRAMMING"
+  },
+  {
+    "procedure_code": "75077",
+    "procedure_description": "24 HOUR HOLTER AMBULATORY MONITORING"
+  },
+  {
+    "procedure_code": "75079",
+    "procedure_description": "CARDIAC EXCERSIZE STRESS TESTING"
+  },
+  {
+    "procedure_code": "75081",
+    "procedure_description": "RECORDING OF TWELVE LEAD ECG"
+  },
+  {
+    "procedure_code": "75085",
+    "procedure_description": "AM EACH ADDITIONAL 30 MINUTES OR PART THEREOF, PROVIDED THAT SUCH PART COMPRISES 50% OR MORE OF THE TIME."
+  },
+  {
+    "procedure_code": "75087",
+    "procedure_description": "M MODE ECHOCARDIOGRAM"
+  },
+  {
+    "procedure_code": "75089",
+    "procedure_description": "2D ECHOCARDIOGRAM"
+  },
+  {
+    "procedure_code": "75091",
+    "procedure_description": "DOPPLER FLOW"
+  },
+  {
+    "procedure_code": "75093",
+    "procedure_description": "COLOR IMAGING"
+  },
+  {
+    "procedure_code": "75095",
+    "procedure_description": "ECG SIGNAL AVERAGING"
+  },
+  {
+    "procedure_code": "75097",
+    "procedure_description": "AMBULATORY BLOOD PRESSURE MONITORING"
+  },
+  {
+    "procedure_code": "75099",
+    "procedure_description": "VECTOR CARDIOGRAM"
+  },
+  {
+    "procedure_code": "75111",
+    "procedure_description": "TRANSOESOPHAGEAL ECHOCARDIOGRAM"
+  },
+  {
+    "procedure_code": "75145",
+    "procedure_description": "AM PREPARATION OF EXTRA-CORPOREAL EQUIPMENT: HAEMOPERFUSION (HP), HAEMOFILTRATION (HF), HAEMOCONCENTRATION (HC), CONTINUOUS RENAL REPLACEMENT THERAPY (CRRT)"
+  },
+  {
+    "procedure_code": "75149",
+    "procedure_description": "AM TREATMENT PROCEDURE PER 1 HOUR (EXCLUDING ACUTE HAEMODIALYSIS, CHRONIC HAEMODIALYSIS AND CRRT)"
+  },
+  {
+    "procedure_code": "75157",
+    "procedure_description": "AM STANDBY WITH EXTRA CORPOREAL EQUIPMENT (MAXIMUM 4 HOURS) (PER EVENT)."
+  }
+]
